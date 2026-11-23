@@ -1,0 +1,1291 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  Clock3,
+  Copy,
+  Leaf,
+  MapPin,
+  Minus,
+  Plus,
+  Search,
+  ShoppingBag,
+  Utensils,
+  X,
+} from "lucide-react";
+import { createSeedCatalog } from "../../lib/menu-data";
+import {
+  addToCart,
+  buildWhatsAppMessage,
+  calculateCart,
+  createWhatsAppUrl,
+  formatPrice,
+  sanitizeCart,
+  updateCartQuantity,
+  validateOrder,
+} from "../../lib/cart";
+import type {
+  CartItem,
+  Catalog,
+  Category,
+  Language,
+  MenuItem,
+  OrderDetails,
+  OrderType,
+} from "../../lib/types";
+import { pickText } from "../../lib/text";
+import { copy } from "./copy";
+
+const NAME_KEY = "tabletap:customer-name";
+type CheckoutField = "name" | "table" | "address";
+
+function Mark() {
+  return (
+    <svg
+      width="42"
+      height="42"
+      viewBox="0 0 48 48"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M15 38C18 28 28 18 36 10M24 26C13 28 8 22 10 16C17 15 23 18 24 26ZM29 21C27 11 32 6 38 7C40 14 36 20 29 21ZM18 33C9 35 5 31 6 26C12 24 17 27 18 33Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+function Photo({
+  src,
+  alt,
+  className = "",
+  eager = false,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  eager?: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  return failed ? (
+    <div className={`photo-fallback ${className}`} role="img" aria-label={alt}>
+      <Utensils size={32} />
+      <span>{alt}</span>
+    </div>
+  ) : (
+    <img
+      className={className}
+      src={src}
+      alt={alt}
+      loading={eager ? "eager" : "lazy"}
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+function Modal({
+  open,
+  onClose,
+  children,
+  label,
+  drawer = false,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  label: string;
+  drawer?: boolean;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (open && !el.open) {
+      el.showModal();
+      // Start on the dialog, not its close button: no focus ring on phones,
+      // and keyboard users reach every control with Tab.
+      el.querySelector<HTMLElement>(".modal-inside")?.focus();
+    } else if (!open && el.open) {
+      // Leave the way it came in, quicker than it entered (apple-design,
+      // emil-design-eng). With reduced motion the CSS fades instead.
+      el.classList.add("closing");
+      const finish = () => {
+        el.classList.remove("closing");
+        if (el.open) el.close();
+      };
+      const timer = setTimeout(finish, 220);
+      el.addEventListener("animationend", finish, { once: true });
+      return () => {
+        clearTimeout(timer);
+        el.classList.remove("closing");
+      };
+    }
+    if (open) {
+      const old = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = old;
+      };
+    }
+  }, [open]);
+  return (
+    <dialog
+      ref={ref}
+      aria-label={label}
+      className={drawer ? "modal cart-modal" : "modal item-modal"}
+      onCancel={(e) => {
+        // Let the exit animation run instead of the browser closing at once.
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-inside" tabIndex={-1}>
+        {children}
+      </div>
+    </dialog>
+  );
+}
+
+export default function Restaurant({
+  menuOnly = false,
+}: {
+  menuOnly?: boolean;
+}) {
+  const [catalog, setCatalog] = useState<Catalog>(createSeedCatalog),
+    [language, setLanguage] = useState<Language>("en"),
+    [category, setCategory] = useState<Category | "all">("all"),
+    [search, setSearch] = useState(""),
+    [vegetarian, setVegetarian] = useState(false),
+    [cart, setCart] = useState<CartItem[]>([]),
+    [storageKey, setStorageKey] = useState(""),
+    [shop, setShop] = useState(""),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [reload, setReload] = useState(0),
+    [selected, setSelected] = useState<MenuItem | null>(null),
+    [options, setOptions] = useState<string[]>([]),
+    [quantity, setQuantity] = useState(1),
+    [cartOpen, setCartOpen] = useState(false),
+    [details, setDetails] = useState<OrderDetails>({
+      name: "",
+      type: "takeaway",
+      table: "",
+      address: "",
+      notes: "",
+    }),
+    [message, setMessage] = useState(""),
+    [formError, setFormError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [copied, setCopied] = useState(false),
+    // Fields shown as invalid: set when a field is left empty or wrong,
+    // cleared on the first corrective keystroke (not on focus, so that
+    // jumping to the first problem field keeps its message visible).
+    [invalid, setInvalid] = useState<Partial<Record<CheckoutField, boolean>>>(
+      {},
+    ),
+    // After "Continue to WhatsApp": the order-sent ending instead of the preview.
+    [sent, setSent] = useState(false),
+    [orderId, setOrderId] = useState("");
+  const DishHeading = menuOnly ? "h2" : "h3";
+  const bagRef = useRef<HTMLButtonElement>(null);
+  const lastCount = useRef<number | null>(null);
+  // Section tabs scroll sideways on phones; fade the edge that hides more tabs.
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [tabsMore, setTabsMore] = useState({ start: false, end: false });
+  function measureTabs() {
+    const el = tabsRef.current;
+    if (!el) return;
+    const hidden = el.scrollWidth - el.clientWidth;
+    // scrollLeft is negative when scrolling right to left (Arabic).
+    const scrolled = Math.abs(el.scrollLeft);
+    setTabsMore((current) => {
+      // Ignore the last few pixels: that is the row's end padding, not a tab.
+      const next = { start: scrolled > 24, end: scrolled < hidden - 24 };
+      return current.start === next.start && current.end === next.end
+        ? current
+        : next;
+    });
+  }
+  useEffect(() => {
+    measureTabs();
+    window.addEventListener("resize", measureTabs);
+    return () => window.removeEventListener("resize", measureTabs);
+  }, [catalog.categories, language, loading]);
+  const t = copy[language],
+    restaurantName = catalog.settings.name || "TableTap",
+    totals = calculateCart(
+      cart,
+      catalog.items,
+      details.type === "delivery" ? catalog.settings.deliveryFee : 0,
+    ),
+    // Only sections with dishes get a tab.
+    menuCategories = catalog.categories.filter((entry) =>
+      catalog.items.some((item) => item.category === entry.id),
+    );
+  useEffect(() => {
+    const controller = new AbortController();
+    let live = true;
+    const params = new URLSearchParams(window.location.search),
+      shopId = params.get("shop") || "";
+    setShop(shopId);
+    // Never show the demo café's details under another restaurant's link.
+    if (shopId)
+      setCatalog((current) => ({
+        ...current,
+        items: [],
+        categories: [],
+        settings: {
+          ...current.settings,
+          name: "",
+          tagline: "",
+          description: "",
+          address: "",
+          hours: "",
+          whatsapp: "",
+        },
+      }));
+    const table = params.get("table");
+    if (table && /^\d{1,2}$/.test(table) && Number(table) > 0)
+      setDetails((d) => ({
+        ...d,
+        type: "dine-in",
+        table: String(Number(table)),
+      }));
+    try {
+      const saved = localStorage.getItem("tabletap:language");
+      if (saved === "en" || saved === "fr" || saved === "ar")
+        setLanguage(saved);
+      // Regulars don't retype their name; it never leaves this phone.
+      const name = localStorage.getItem(NAME_KEY);
+      if (name) setDetails((d) => (d.name ? d : { ...d, name }));
+    } catch {}
+    setLoading(true);
+    setError("");
+    fetch(
+      `/api/catalog${shopId ? `?shop=${encodeURIComponent(shopId)}` : ""}`,
+      { signal: controller.signal },
+    )
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Menu unavailable");
+        return r.json() as Promise<Catalog>;
+      })
+      .then((data) => {
+        if (!live) return;
+        setCatalog(data);
+        const key = `tabletap:cart:v1:${shopId || "demo"}`;
+        try {
+          setCart(
+            sanitizeCart(
+              JSON.parse(localStorage.getItem(key) || "[]"),
+              data.items,
+            ),
+          );
+        } catch {
+          setCart([]);
+        }
+        setStorageKey(key);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (live && e.name !== "AbortError") {
+          setError("menu");
+          setLoading(false);
+        }
+      });
+    return () => {
+      live = false;
+      controller.abort();
+    };
+  }, [reload]);
+  useEffect(() => {
+    document.documentElement.lang = language;
+    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+    try {
+      localStorage.setItem("tabletap:language", language);
+    } catch {}
+  }, [language]);
+  useEffect(() => {
+    if (storageKey)
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(cart));
+      } catch {}
+  }, [cart, storageKey]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 3000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  // The cart button pops when the count goes up, so adding feels confirmed.
+  useEffect(() => {
+    const previous = lastCount.current;
+    lastCount.current = totals.itemCount;
+    const bag = bagRef.current;
+    if (!bag || previous === null || totals.itemCount <= previous) return;
+    bag.classList.remove("bump");
+    void bag.offsetWidth; // restart the animation on quick repeat adds
+    bag.classList.add("bump");
+  }, [totals.itemCount]);
+  // Sections and dishes rise in as they reach the screen. Content is only
+  // hidden once this runs (html.motion-ok), and never with reduced motion.
+  useEffect(() => {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const root = document.documentElement;
+    root.classList.add("motion-ok");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries)
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-in");
+            observer.unobserve(entry.target);
+          }
+      },
+      { rootMargin: "0px 0px -8% 0px" },
+    );
+    document
+      .querySelectorAll("[data-reveal]:not(.is-in)")
+      .forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, [loading, category, search, vegetarian, language]);
+  const filtered = catalog.items.filter(
+    (item) =>
+      (category === "all" || item.category === category) &&
+      (!vegetarian ||
+        item.tags.includes("vegetarian") ||
+        item.tags.includes("vegan")) &&
+      `${pickText(item.name, language)} ${pickText(item.description, language)} ${pickText(item.name, "en")}`
+        .toLocaleLowerCase()
+        .includes(search.trim().toLocaleLowerCase()),
+  );
+  function pick(item: MenuItem) {
+    setSelected(item);
+    setQuantity(1);
+    setOptions([]);
+  }
+  function addSelected() {
+    if (!selected) return;
+    setCart((c) => addToCart(c, selected, options, quantity));
+    setSelected(null);
+    setNotice(t.saved);
+    setMessage("");
+    setSent(false);
+  }
+  /** Dishes without extras go straight into the order: one tap, not two. */
+  function quickAdd(item: MenuItem) {
+    if (item.options.length) return pick(item);
+    setCart((c) => addToCart(c, item, [], 1));
+    setNotice(t.saved);
+    setMessage("");
+    setSent(false);
+  }
+  function fieldInvalid(field: CheckoutField, next = details) {
+    if (field === "name") return !next.name.trim();
+    if (field === "table")
+      return (
+        next.type === "dine-in" &&
+        !/^[A-Za-z0-9 -]{1,20}$/.test(next.table.trim())
+      );
+    return next.type === "delivery" && next.address.trim().length < 5;
+  }
+  function checkField(field: CheckoutField) {
+    setInvalid((current) => ({ ...current, [field]: fieldInvalid(field) }));
+  }
+  function clearField(field: CheckoutField) {
+    setInvalid((current) =>
+      current[field] ? { ...current, [field]: false } : current,
+    );
+  }
+  function startNewOrder() {
+    setCart([]);
+    setMessage("");
+    setSent(false);
+    setOrderId("");
+    setDetails((d) => ({ ...d, notes: "", address: "" }));
+    setCartOpen(false);
+  }
+  function changeQuantity(key: string, q: number) {
+    setCart((c) => updateCartQuantity(c, key, q));
+    setMessage("");
+    setSent(false);
+  }
+  function preview(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    // Show every problem next to its field and move to the first one.
+    const fields: CheckoutField[] = ["name", "table", "address"];
+    const wrong = fields.filter((field) => fieldInvalid(field));
+    if (wrong.length) {
+      setInvalid(Object.fromEntries(wrong.map((field) => [field, true])));
+      e.currentTarget
+        .querySelector<HTMLElement>(`[name="${wrong[0]}"]`)
+        ?.focus();
+      return;
+    }
+    const issue = validateOrder(details);
+    if (issue) {
+      setFormError(t.error);
+      return;
+    }
+    try {
+      setMessage(buildWhatsAppMessage(cart, catalog, details, language));
+      setOrderId(crypto.randomUUID().replaceAll("-", ""));
+      try {
+        localStorage.setItem(NAME_KEY, details.name.trim());
+      } catch {}
+      setFormError("");
+      setCopied(false);
+    } catch (err) {
+      console.error("Could not build the order message:", err);
+      setFormError(t.error);
+    }
+  }
+  function changeLanguage(next: Language) {
+    setLanguage(next);
+    if (!message) return;
+    // Rebuild an open preview so the sent order matches the chosen language.
+    try {
+      setMessage(buildWhatsAppMessage(cart, catalog, details, next));
+      setCopied(false);
+    } catch {
+      setMessage("");
+    }
+  }
+  /** Records the order for the owner's dashboard. WhatsApp opens either way. */
+  function recordOrder() {
+    setSent(true);
+    if (!shop || !orderId) return;
+    fetch("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: orderId, shop, cart, details, language }),
+      keepalive: true,
+    }).catch(() => {});
+  }
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopied(true);
+    } catch {
+      setFormError(t.copyFallback);
+    }
+  }
+  let whatsappUrl = "";
+  try {
+    if (message)
+      whatsappUrl = createWhatsAppUrl(catalog.settings.whatsapp, message);
+  } catch {}
+  return (
+    <>
+      <a className="skip-link" href="#menu">
+        Skip to menu
+      </a>
+      <header className="site-header shell">
+        <a
+          className="brand"
+          href={shop ? `/?shop=${encodeURIComponent(shop)}` : "/"}
+          aria-label={`${restaurantName} home`}
+        >
+          <Mark />
+          <span>{restaurantName}</span>
+        </a>
+        <nav className="main-nav" aria-label="Main navigation">
+          <a href="#menu">{t.menu}</a>
+          <a href="#story">{t.story}</a>
+          <a href="#visit">{t.visit}</a>
+        </nav>
+        <div className="header-actions">
+          <label className="language-select">
+            <span className="sr-only">Language</span>
+            <select
+              aria-label="Language"
+              value={language}
+              onChange={(e) => changeLanguage(e.target.value as Language)}
+            >
+              <option value="en">EN</option>
+              <option value="fr">FR</option>
+              <option value="ar">عربي</option>
+            </select>
+          </label>
+          <button
+            ref={bagRef}
+            className="bag-button"
+            aria-label={`${t.cart} (${totals.itemCount})`}
+            onClick={() => setCartOpen(true)}
+          >
+            <ShoppingBag size={20} />
+            <span>{totals.itemCount}</span>
+          </button>
+        </div>
+      </header>
+      {!menuOnly && (
+        <section className="hero shell" aria-labelledby="hero-title">
+          <div className="hero-copy">
+            <h1 id="hero-title" data-reveal>
+              {(catalog.settings.tagline === "Good food. Slow mornings."
+                ? t.hero
+                : catalog.settings.tagline
+              )
+                .split("\n")
+                .map((line, i) => (
+                  <span key={i}>{line}</span>
+                ))}
+            </h1>
+            <p data-reveal style={{ "--reveal-i": 1 } as React.CSSProperties}>
+              {t.intro}
+            </p>
+            <a
+              href="#menu"
+              className="button primary"
+              data-reveal
+              style={{ "--reveal-i": 2 } as React.CSSProperties}
+            >
+              {t.explore}
+              <ArrowDown size={18} />
+            </a>
+            <div className="hero-footnote">
+              <Leaf size={18} />
+              <span>
+                {language === "fr"
+                  ? "De saison. Tout simplement."
+                  : language === "ar"
+                    ? "مكونات موسمية. ببساطة."
+                    : "Seasonal ingredients. Simple pleasures."}
+              </span>
+            </div>
+          </div>
+          <div
+            className="hero-photos"
+            data-reveal
+            style={{ "--reveal-i": 1 } as React.CSSProperties}
+          >
+            {/* The frame clips the photo's slow drift. */}
+            <div className="hero-main-frame">
+              <Photo
+                src="/images/toast.jpg"
+                alt="Avocado toast with tomatoes on a ceramic plate"
+                className="hero-main-photo"
+                eager
+              />
+            </div>
+            <div className="hero-small-photo">
+              <Photo src="/images/coffee.jpg" alt="Freshly made coffee" eager />
+              <span>
+                {language === "fr"
+                  ? "Encore un café ?"
+                  : language === "ar"
+                    ? "قهوة أخرى؟"
+                    : "One more coffee?"}
+              </span>
+            </div>
+            <div className="hero-photo-caption">
+              <span>{restaurantName}</span>
+              <span>
+                {language === "fr"
+                  ? "Prenez votre temps."
+                  : language === "ar"
+                    ? "خذ وقتك."
+                    : "Take your time."}
+              </span>
+            </div>
+          </div>
+        </section>
+      )}
+      <main>
+        <section
+          id="menu"
+          className={`menu-section shell ${menuOnly ? "menu-first" : ""}`}
+          aria-labelledby="menu-title"
+        >
+          <div className="section-heading" data-reveal>
+            <div>
+              {menuOnly ? (
+                <h1 id="menu-title">{t.menu}</h1>
+              ) : (
+                <h2 id="menu-title">{t.fresh}</h2>
+              )}
+              <p>
+                {menuOnly
+                  ? t.menuHowTo.replace("{restaurant}", restaurantName)
+                  : t.menuIntro}
+              </p>
+            </div>
+            {catalog.settings.hours && (
+              <span className="menu-note">
+                <Clock3 size={17} />
+                {catalog.settings.hours}
+              </span>
+            )}
+          </div>
+          {details.type === "dine-in" && details.table && (
+            <p className="table-notice">
+              <Utensils size={17} />
+              {t.tableLabel} <strong>{details.table}</strong>
+            </p>
+          )}
+          <div className="menu-toolbar">
+            <div
+              className="category-tabs"
+              aria-label={t.menu}
+              ref={tabsRef}
+              data-more-start={tabsMore.start || undefined}
+              data-more-end={tabsMore.end || undefined}
+              onScroll={measureTabs}
+            >
+              {[
+                { id: "all", label: t.all },
+                ...menuCategories.map((entry) => ({
+                  id: entry.id,
+                  label: pickText(entry.name, language),
+                })),
+              ].map(({ id, label }) => (
+                <button
+                  key={id}
+                  aria-pressed={category === id}
+                  onClick={(e) => {
+                    setCategory(id);
+                    // Bring a half-hidden tab fully into view.
+                    e.currentTarget.scrollIntoView({
+                      behavior: "smooth",
+                      block: "nearest",
+                      inline: "nearest",
+                    });
+                  }}
+                  className={category === id ? "active" : ""}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="menu-filter-row">
+              <label className="search-box">
+                <Search size={18} />
+                <span className="sr-only">{t.search}</span>
+                <input
+                  type="search"
+                  placeholder={t.search}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </label>
+              <button
+                className={`veg-filter ${vegetarian ? "selected" : ""}`}
+                aria-pressed={vegetarian}
+                onClick={() => setVegetarian((v) => !v)}
+              >
+                <Leaf size={16} />
+                {t.veg}
+                {vegetarian && <Check size={14} />}
+              </button>
+            </div>
+          </div>
+          {loading ? (
+            // Placeholders shaped like the dishes, so nothing jumps when they arrive.
+            <div
+              className="menu-grid menu-skeleton"
+              role="status"
+              aria-busy="true"
+            >
+              <span className="sr-only">{t.menuLoading}</span>
+              {[0, 1, 2, 3].map((n) => (
+                <div className="menu-item" key={n} aria-hidden="true">
+                  <span className="skeleton-photo" />
+                  <span className="skeleton-lines">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="menu-state" role="alert">
+              <h3>{t.error}</h3>
+              <p>{t.errorHelp}</p>
+              <button
+                className="button primary"
+                onClick={() => setReload((v) => v + 1)}
+              >
+                {t.retry}
+              </button>
+              <a className="text-link" href="/menu">
+                {t.openDemo}
+              </a>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="menu-state">
+              <Search size={30} />
+              <h3>{t.noResults}</h3>
+              <button
+                className="text-link"
+                onClick={() => {
+                  setSearch("");
+                  setVegetarian(false);
+                  setCategory("all");
+                }}
+              >
+                {t.clear}
+              </button>
+            </div>
+          ) : (
+            <div className="menu-grid">
+              {filtered.map((item, index) => (
+                <article
+                  className={`menu-item ${!item.available ? "unavailable" : ""}`}
+                  key={item.id}
+                  data-reveal
+                  style={{ "--reveal-i": index % 4 } as React.CSSProperties}
+                >
+                  <button
+                    className="menu-image-button"
+                    disabled={!item.available}
+                    onClick={() => pick(item)}
+                    aria-label={`${t.customize}: ${pickText(item.name, language)}`}
+                  >
+                    <Photo
+                      src={item.image}
+                      alt={pickText(item.name, language)}
+                    />
+                  </button>
+                  <div className="menu-item-content">
+                    <div className="menu-item-title">
+                      {/* Dishes sit under the page's H1 on /menu, under an H2 on the homepage. */}
+                      <DishHeading className="menu-item-name">
+                        {pickText(item.name, language)}
+                      </DishHeading>
+                      {(item.tags.includes("vegetarian") ||
+                        item.tags.includes("vegan")) && (
+                        <Leaf
+                          className="diet-icon"
+                          size={15}
+                          aria-label={t.veg}
+                        />
+                      )}
+                    </div>
+                    <p>{pickText(item.description, language)}</p>
+                    <div className="menu-item-bottom">
+                      <strong>{formatPrice(item.price, language)}</strong>
+                      <button
+                        className="add-button"
+                        disabled={!item.available}
+                        onClick={() => quickAdd(item)}
+                        aria-label={`${t.add} ${pickText(item.name, language)}`}
+                      >
+                        {item.available ? (
+                          <>
+                            {t.add}
+                            <Plus size={15} />
+                          </>
+                        ) : (
+                          t.sold
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+          <p className="allergy-note">
+            {language === "fr"
+              ? "Des allergies ? Indiquez-les dans votre commande et demandez confirmation au café."
+              : language === "ar"
+                ? "لديك حساسية؟ اذكرها في طلبك واطلب التأكيد من المقهى."
+                : "Food allergies? Include them in your order and check with the café before eating."}
+          </p>
+        </section>
+        <section id="story" className="story-section shell">
+          <div className="story-photo" data-reveal>
+            <Photo
+              src="/images/cafe.jpg"
+              alt="Café interior with wooden tables and natural light"
+            />
+          </div>
+          <div
+            className="story-copy"
+            data-reveal
+            style={{ "--reveal-i": 1 } as React.CSSProperties}
+          >
+            <Leaf size={30} strokeWidth={1.25} />
+            <h2>
+              {t.about.split("\n").map((line, i) => (
+                <span key={i}>{line}</span>
+              ))}
+            </h2>
+            <p>{catalog.settings.description}</p>
+            <a className="text-link" href="#visit">
+              {t.visit}
+              <ArrowUpRight size={18} />
+            </a>
+          </div>
+        </section>
+        <section id="visit" className="visit-section shell">
+          <h2 data-reveal>{t.visitTitle}</h2>
+          <div
+            className="visit-detail"
+            data-reveal
+            style={{ "--reveal-i": 1 } as React.CSSProperties}
+          >
+            <MapPin size={21} />
+            <div>
+              <h3>{t.find}</h3>
+              <p>{catalog.settings.address}</p>
+            </div>
+          </div>
+          <div
+            className="visit-detail"
+            data-reveal
+            style={{ "--reveal-i": 2 } as React.CSSProperties}
+          >
+            <Clock3 size={21} />
+            <div>
+              <h3>{t.hours}</h3>
+              <p>{catalog.settings.hours}</p>
+            </div>
+          </div>
+        </section>
+      </main>
+      <footer className="site-footer">
+        <div className="shell footer-top">
+          <a
+            className="brand"
+            href={shop ? `/?shop=${encodeURIComponent(shop)}` : "/"}
+          >
+            <Mark />
+            <span>{restaurantName}</span>
+          </a>
+          <div className="footer-links">
+            <a href="/admin">
+              {t.owner}
+              <ArrowUpRight size={14} />
+            </a>
+            {/* <a href="/qr">
+              {t.qr}
+              <ArrowUpRight size={14} />
+            </a>
+            <a href="/privacy">{t.privacy}</a>
+            <a href="/credits">Photo credits</a> */}
+          </div>
+        </div>
+        <div className="shell footer-bottom">
+          <span>{t.demoLabel}</span>
+          <span>{t.powered} ↗</span>
+        </div>
+      </footer>
+      {totals.itemCount > 0 && !cartOpen && (
+        <button
+          className="floating-cart"
+          onClick={() => {
+            setCartOpen(true);
+            setMessage("");
+          }}
+        >
+          <span className="cart-count">{totals.itemCount}</span>
+          <span>{t.viewOrder}</span>
+          <strong>{formatPrice(totals.total, language)}</strong>
+          <ArrowRight size={19} />
+        </button>
+      )}
+      <div
+        className={`toast ${notice ? "visible" : ""}`}
+        role="status"
+        aria-live="polite"
+      >
+        {notice && (
+          <>
+            <Check size={17} />
+            {notice}
+          </>
+        )}
+      </div>
+      <Modal
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        label={t.customize}
+      >
+        {selected && (
+          <>
+            <div className="item-modal-photo">
+              <Photo
+                src={selected.image}
+                alt={pickText(selected.name, language)}
+                eager
+              />
+              <button
+                className="close-button"
+                onClick={() => setSelected(null)}
+                aria-label={t.close}
+              >
+                <X size={21} />
+              </button>
+            </div>
+            <div className="item-modal-body">
+              <div className="modal-title-row">
+                <h2>{pickText(selected.name, language)}</h2>
+                <strong>{formatPrice(selected.price, language)}</strong>
+              </div>
+              <p>{pickText(selected.description, language)}</p>
+              {selected.options.length > 0 && (
+                <fieldset className="extras">
+                  <legend>{t.extras}</legend>
+                  {selected.options.map((option) => (
+                    <label key={option.id}>
+                      <input
+                        type="checkbox"
+                        checked={options.includes(option.id)}
+                        onChange={(e) =>
+                          setOptions((o) =>
+                            e.target.checked
+                              ? [...o, option.id]
+                              : o.filter((x) => x !== option.id),
+                          )
+                        }
+                      />
+                      <span>{pickText(option.label, language)}</span>
+                      <strong>+{formatPrice(option.price, language)}</strong>
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+              <div className="item-add-row">
+                <div className="quantity-control">
+                  <button
+                    aria-label="Decrease quantity"
+                    disabled={quantity <= 1}
+                    onClick={() => setQuantity((v) => v - 1)}
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <output>{quantity}</output>
+                  <button
+                    aria-label="Increase quantity"
+                    disabled={quantity >= 99}
+                    onClick={() => setQuantity((v) => v + 1)}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+                <button className="button primary" onClick={addSelected}>
+                  {t.addOrder}
+                  <span>
+                    {formatPrice(
+                      (selected.price +
+                        selected.options
+                          .filter((o) => options.includes(o.id))
+                          .reduce((sum, o) => sum + o.price, 0)) *
+                        quantity,
+                      language,
+                    )}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </Modal>
+      <Modal
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        label={t.cart}
+        drawer
+      >
+        <div className="cart-heading">
+          <h2>
+            {t.cart}
+            <span>{totals.itemCount}</span>
+          </h2>
+          <button
+            className="close-button"
+            onClick={() => setCartOpen(false)}
+            aria-label={t.close}
+          >
+            <X size={22} />
+          </button>
+        </div>
+        {!totals.itemCount ? (
+          <div className="empty-cart">
+            <ShoppingBag size={45} strokeWidth={1} />
+            <h3>{t.empty}</h3>
+            <p>{t.emptyText}</p>
+            <button
+              className="button primary"
+              onClick={() => setCartOpen(false)}
+            >
+              {t.continue}
+              <ArrowRight size={17} />
+            </button>
+          </div>
+        ) : sent ? (
+          // The ending: what happened, what to do in WhatsApp, and a clean restart.
+          <div className="order-sent" role="status">
+            <span className="order-sent-mark" aria-hidden="true">
+              <Check size={26} />
+            </span>
+            <h3>{t.sentTitle}</h3>
+            <p>{t.sentText.replace("{restaurant}", restaurantName)}</p>
+            <button
+              className="button primary full-width"
+              onClick={startNewOrder}
+            >
+              {t.newOrder}
+            </button>
+            {whatsappUrl && (
+              <a
+                className="text-link"
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t.openAgain}
+                <ArrowUpRight size={16} />
+              </a>
+            )}
+          </div>
+        ) : message ? (
+          <div className="order-preview">
+            <button className="text-link" onClick={() => setMessage("")}>
+              ← {t.back}
+            </button>
+            <h3>{t.message}</h3>
+            <pre tabIndex={0}>{message}</pre>
+            <p className="confirmation-note">{t.confirm}</p>
+            {!whatsappUrl && <p className="demo-warning">{t.demo}</p>}
+            {formError && (
+              <p role="alert" className="form-error">
+                {formError}
+              </p>
+            )}
+            <button
+              className="button secondary full-width"
+              onClick={copyMessage}
+            >
+              {copied ? <Check size={18} /> : <Copy size={18} />}
+              {copied ? t.copied : t.copy}
+            </button>
+            {whatsappUrl ? (
+              <a
+                className="button primary full-width"
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={recordOrder}
+              >
+                {t.send}
+                <ArrowUpRight size={18} />
+              </a>
+            ) : (
+              <button className="button primary full-width" disabled>
+                {t.send}
+              </button>
+            )}
+          </div>
+        ) : (
+          <form className="cart-form" onSubmit={preview} noValidate>
+            <div className="cart-lines">
+              {totals.lines.map((line) => (
+                <div className="cart-line" key={line.key}>
+                  <Photo
+                    src={line.item.image}
+                    alt={pickText(line.item.name, language)}
+                  />
+                  <div className="cart-line-body">
+                    <div className="cart-line-title">
+                      <h3>{pickText(line.item.name, language)}</h3>
+                      <strong>{formatPrice(line.total, language)}</strong>
+                    </div>
+                    {line.options.length > 0 && (
+                      <p>
+                        {line.options
+                          .map((o) => pickText(o.label, language))
+                          .join(", ")}
+                      </p>
+                    )}
+                    <div className="cart-line-controls">
+                      <div className="quantity-control">
+                        <button
+                          type="button"
+                          aria-label={`Remove one ${pickText(line.item.name, language)}`}
+                          onClick={() =>
+                            changeQuantity(line.key, line.quantity - 1)
+                          }
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <output>{line.quantity}</output>
+                        <button
+                          type="button"
+                          aria-label={`Add one ${pickText(line.item.name, language)}`}
+                          disabled={line.quantity >= 99}
+                          onClick={() =>
+                            changeQuantity(line.key, line.quantity + 1)
+                          }
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                      <button
+                        className="remove-line"
+                        type="button"
+                        aria-label={`Remove ${pickText(line.item.name, language)}`}
+                        onClick={() => changeQuantity(line.key, 0)}
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <fieldset className="order-types">
+              <legend>{t.orderType}</legend>
+              <div>
+                {(["dine-in", "takeaway", "delivery"] as OrderType[]).map(
+                  (type) => (
+                    <label
+                      key={type}
+                      className={details.type === type ? "selected" : ""}
+                    >
+                      <input
+                        type="radio"
+                        name="orderType"
+                        value={type}
+                        checked={details.type === type}
+                        onChange={() => setDetails((d) => ({ ...d, type }))}
+                      />
+                      {type === "dine-in"
+                        ? t.dine
+                        : type === "takeaway"
+                          ? t.takeaway
+                          : t.delivery}
+                    </label>
+                  ),
+                )}
+              </div>
+            </fieldset>
+            <label className="form-field">
+              {t.name}
+              <input
+                name="name"
+                required
+                maxLength={100}
+                autoComplete="name"
+                value={details.name}
+                aria-invalid={invalid.name || undefined}
+                aria-describedby={invalid.name ? "err-name" : undefined}
+                onBlur={() => checkField("name")}
+                onChange={(e) => {
+                  clearField("name");
+                  setDetails((d) => ({ ...d, name: e.target.value }));
+                }}
+              />
+              {invalid.name && (
+                <span className="field-error" id="err-name">
+                  {t.errName}
+                </span>
+              )}
+            </label>
+            {details.type === "dine-in" && (
+              <label className="form-field">
+                {t.table}
+                <input
+                  name="table"
+                  required
+                  maxLength={20}
+                  placeholder="5"
+                  value={details.table}
+                  aria-invalid={invalid.table || undefined}
+                  aria-describedby={invalid.table ? "err-table" : undefined}
+                  onBlur={() => checkField("table")}
+                  onChange={(e) => {
+                    clearField("table");
+                    setDetails((d) => ({ ...d, table: e.target.value }));
+                  }}
+                />
+                {invalid.table && (
+                  <span className="field-error" id="err-table">
+                    {t.errTable}
+                  </span>
+                )}
+              </label>
+            )}
+            {details.type === "delivery" && (
+              <label className="form-field">
+                {t.address}
+                <textarea
+                  name="address"
+                  required
+                  minLength={5}
+                  maxLength={300}
+                  autoComplete="street-address"
+                  value={details.address}
+                  aria-invalid={invalid.address || undefined}
+                  aria-describedby={invalid.address ? "err-address" : undefined}
+                  onBlur={() => checkField("address")}
+                  onChange={(e) => {
+                    clearField("address");
+                    setDetails((d) => ({ ...d, address: e.target.value }));
+                  }}
+                />
+                {invalid.address && (
+                  <span className="field-error" id="err-address">
+                    {t.errAddress}
+                  </span>
+                )}
+              </label>
+            )}
+            <label className="form-field">
+              {t.notes}
+              <span className="optional">{t.optional}</span>
+              <textarea
+                maxLength={500}
+                placeholder={t.notesPlaceholder}
+                value={details.notes}
+                onChange={(e) =>
+                  setDetails((d) => ({ ...d, notes: e.target.value }))
+                }
+              />
+            </label>
+            <div className="order-totals">
+              <p>
+                <span>{t.subtotal}</span>
+                <span>{formatPrice(totals.subtotal, language)}</span>
+              </p>
+              {details.type === "delivery" && (
+                <p>
+                  <span>{t.deliveryFee}</span>
+                  <span>{formatPrice(totals.deliveryFee, language)}</span>
+                </p>
+              )}
+              <p className="grand-total">
+                <span>{t.total}</span>
+                <span>{formatPrice(totals.total, language)}</span>
+              </p>
+            </div>
+            {formError && (
+              <p className="form-error" role="alert">
+                {formError}
+              </p>
+            )}
+            <button className="button primary full-width" type="submit">
+              {t.preview}
+              <ArrowRight size={18} />
+            </button>
+            <p className="cart-fine-print">{t.confirm}</p>
+            <p className="cart-fine-print">
+              {t.privacyNote.replace("{restaurant}", restaurantName)}{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer">
+                {t.privacy}
+              </a>
+            </p>
+          </form>
+        )}
+      </Modal>
+    </>
+  );
+}

@@ -1,0 +1,38 @@
+import {
+  assertSameOrigin,
+  jsonResponse,
+  readBoundedJson,
+  routeError,
+} from "../../../../lib/api-security";
+import {
+  normalizeEmail,
+  sessionCookie,
+  verifySignInCode,
+} from "../../../../lib/auth";
+import { enforceLimit } from "../../../../lib/rate-limit";
+import { postgresAuthStore } from "../../../../lib/auth-store";
+import {
+  clientIp,
+  postgresRateLimitStore,
+} from "../../../../lib/rate-limit-store";
+
+export async function POST(request: Request) {
+  try {
+    assertSameOrigin(request);
+    await enforceLimit(postgresRateLimitStore(), "verifyPerIp", clientIp(request));
+    const body = await readBoundedJson(request, 1_000);
+    // An owner who built a menu under ChatGPT sign-in keeps it when they sign
+    // in by email with the same address while that platform session is active.
+    
+    const email = normalizeEmail((body as { email?: unknown } | null)?.email);
+    const { user, token } = await verifySignInCode(postgresAuthStore(), body);
+    const secure = new URL(request.url).protocol === "https:";
+    return jsonResponse(
+      { user: { id: user.id, name: user.email, email: user.email } },
+      200,
+      { "Set-Cookie": sessionCookie(token, secure) },
+    );
+  } catch (error) {
+    return routeError(error);
+  }
+}
