@@ -1,6 +1,6 @@
 import type { Language, OrderType } from "../../../lib/types";
 import { formatPrice } from "../../../lib/cart";
-import { copy } from "../copy";
+import { copy } from "../../../features/storefront/i18n/copy";
 
 export default function CartSummary({
   subtotal,

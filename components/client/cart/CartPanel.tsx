@@ -2,7 +2,7 @@
 
 import { ArrowRight, ShoppingBag, X } from "lucide-react";
 import type { Language } from "../../../lib/types";
-import { copy } from "../copy";
+import { copy } from "../../../features/storefront/i18n/copy";
 import type { useCheckout } from "../../../features/storefront/useCheckout";
 import Modal from "../shared/Modal";
 import CheckoutForm from "../ordering/CheckoutForm";

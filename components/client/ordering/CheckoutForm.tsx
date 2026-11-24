@@ -4,7 +4,7 @@ import type { Dispatch, FormEventHandler, SetStateAction } from "react";
 import { ArrowRight } from "lucide-react";
 import type { CartLine } from "../../../lib/cart";
 import type { Language, OrderDetails, OrderType } from "../../../lib/types";
-import { copy } from "../copy";
+import { copy } from "../../../features/storefront/i18n/copy";
 import CartItem from "../cart/CartItem";
 import CartSummary from "../cart/CartSummary";
 

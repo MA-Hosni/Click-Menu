@@ -6,19 +6,21 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
 import type { AppUser, Catalog, Language } from "../../lib/types";
 import { createSeedCatalog } from "../../lib/menu-data";
 import { validateCatalog } from "../../lib/catalog-validation";
+import { reconcileCatalogSave } from "./reconcileCatalogSave";
 import {
   ADMIN_LANGUAGE_KEY,
   AdminCopyContext,
   adminCopy,
   initialAdminLanguage,
   localizeError,
-} from "../../app/admin/admin-copy";
+} from "./i18n/admin-copy";
 
 type CatalogUpdater = (current: Catalog) => Catalog;
 
@@ -45,6 +47,7 @@ interface AdminContextValue {
 const AdminContext = createContext<AdminContextValue | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
+  const saveInProgress = useRef(false);
   const [user, setUser] = useState<AppUser | null>(null);
   const [catalog, setCatalog] = useState<Catalog>(createSeedCatalog);
   const [saved, setSaved] = useState<Catalog>(createSeedCatalog);
@@ -122,16 +125,20 @@ export function AdminProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const saveCatalog = useCallback(async () => {
+    if (saveInProgress.current) return;
+
     setError("");
     setConflict(false);
     setNotice("");
+    const submittedDraft = structuredClone(catalog);
     let checked: Catalog;
     try {
-      checked = validateCatalog(catalog);
+      checked = validateCatalog(submittedDraft);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t.errorFields);
       return;
     }
+    saveInProgress.current = true;
     setSaving(true);
     try {
       const response = await fetch("/api/admin/catalog", {
@@ -144,14 +151,18 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         setConflict(response.status === 409);
         throw new Error((data as { error?: string }).error || t.errorSave);
       }
-      setCatalog(validateCatalog(data));
-      setSaved(validateCatalog(data));
+      const savedCatalog = validateCatalog(data);
+      setCatalog((current) =>
+        reconcileCatalogSave(current, submittedDraft, savedCatalog),
+      );
+      setSaved(savedCatalog);
       setNotice(t.savedNotice);
     } catch (cause) {
       setError(
         cause instanceof Error ? localizeError(cause.message, t) : t.errorSave,
       );
     } finally {
+      saveInProgress.current = false;
       setSaving(false);
     }
   }, [catalog, t]);

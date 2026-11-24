@@ -1,10 +1,10 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { Language, OrderType } from "../../lib/types";
-import type { OrderStatus } from "../../lib/orders";
+import type { Language, OrderType } from "../../../lib/types";
+import type { OrderStatus } from "../../../lib/orders";
 
-/** Owner dashboard wording. Customer text lives in components/client/copy.ts. */
+/** Owner dashboard wording. Customer wording lives in features/storefront/i18n. */
 const en = {
   languageName: "English",
   dashboardLanguage: "Dashboard language",

@@ -8,7 +8,7 @@ import {
   createWhatsAppUrl,
   validateOrder,
 } from "../../lib/cart";
-import { copy } from "../../components/client/copy";
+import { copy } from "./i18n/copy";
 
 const NAME_KEY = "tabletap:customer-name";
 type CheckoutField = "name" | "table" | "address";

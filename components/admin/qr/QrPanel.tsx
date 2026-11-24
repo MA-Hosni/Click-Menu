@@ -9,7 +9,7 @@ import {
   ExternalLink,
   Printer,
 } from "lucide-react";
-import { useAdminCopy } from "../../../app/admin/admin-copy";
+import { useAdminCopy } from "../../../features/admin/i18n/admin-copy";
 import QrPreview from "./QrPreview";
 
 export interface QrPanelProps {

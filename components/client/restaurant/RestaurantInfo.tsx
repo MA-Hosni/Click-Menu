@@ -1,6 +1,6 @@
 import { ArrowUpRight, Clock3, Leaf, MapPin } from "lucide-react";
 import type { Catalog, Language } from "../../../lib/types";
-import { copy } from "../copy";
+import { copy } from "../../../features/storefront/i18n/copy";
 import Photo from "../shared/Photo";
 
 export default function RestaurantInfo({

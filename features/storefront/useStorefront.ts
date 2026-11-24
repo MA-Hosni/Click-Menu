@@ -8,7 +8,7 @@ import {
   sanitizeCart,
   updateCartQuantity,
 } from "../../lib/cart";
-import { copy } from "../../components/client/copy";
+import { copy } from "./i18n/copy";
 
 const LANGUAGE_KEY = "tabletap:language";
 

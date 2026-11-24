@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { ShoppingBag } from "lucide-react";
 import type { Language } from "../../../lib/types";
-import { copy } from "../copy";
+import { copy } from "../../../features/storefront/i18n/copy";
 import RestaurantBrand from "./RestaurantBrand";
 
 export default function RestaurantHeader({

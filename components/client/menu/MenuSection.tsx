@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Clock3, Search, Utensils } from "lucide-react";
 import type { Catalog, Category, Language, MenuItem } from "../../../lib/types";
 import { pickText } from "../../../lib/text";
-import { copy } from "../copy";
+import { copy } from "../../../features/storefront/i18n/copy";
 import MenuCategoryNavigation from "./MenuCategoryNavigation";
 import MenuItemCard from "./MenuItemCard";
 import MenuItemDetails from "./MenuItemDetails";

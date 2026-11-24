@@ -2,7 +2,7 @@
 
 import { Check, ChefHat, RotateCcw, X } from "lucide-react";
 import type { OrderRecord, OrderStatus } from "../../../lib/orders";
-import { useAdminCopy } from "../../../app/admin/admin-copy";
+import { useAdminCopy } from "../../../features/admin/i18n/admin-copy";
 
 export default function OrderCard({
   order,

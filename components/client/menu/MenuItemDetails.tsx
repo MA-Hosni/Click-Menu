@@ -4,7 +4,7 @@ import { Minus, Plus, X } from "lucide-react";
 import type { Language, MenuItem } from "../../../lib/types";
 import { formatPrice } from "../../../lib/cart";
 import { pickText } from "../../../lib/text";
-import { copy } from "../copy";
+import { copy } from "../../../features/storefront/i18n/copy";
 import Modal from "../shared/Modal";
 import Photo from "../shared/Photo";
 

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { formatPrice } from "../../../lib/cart";
 import type { OrderRecord, OrderStatus } from "../../../lib/orders";
-import { useAdminCopy } from "../../../app/admin/admin-copy";
+import { useAdminCopy } from "../../../features/admin/i18n/admin-copy";
 import OrderCard from "./OrderCard";
 
 /** How often an open Orders screen checks for new orders. */

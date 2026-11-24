@@ -1,304 +1,116 @@
-# ClickMenu — Architecture and Refactoring Guidelines
+<!-- BEGIN:nextjs-agent-rules -->
 
-## 1. Project objective
+## This is NOT the Next.js you know
 
-ClickMenu is an existing Next.js restaurant menu and ordering application.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `dist/docs/` before writing any code. Heed deprecation notices.
 
-The primary engineering objective is to evolve the codebase into a modular, maintainable, contributor-friendly architecture.
+<!-- END:nextjs-agent-rules -->
 
-This is an architectural refactoring project, not a feature-development exercise. Prioritize:
+# ClickMenu architecture and contributor guidelines
 
-- Clear separation of responsibilities.
-- Small, focused, understandable files.
-- Feature-oriented component organization.
-- Reusable components without unnecessary abstraction.
-- Explicit boundaries between routing, presentation, state, business logic, and data access.
-- Consistent naming and predictable file locations.
-- Preservation of existing application behavior.
+## Project objective
 
-A new contributor should be able to locate a feature, understand its dependencies, and make a change without having to understand the entire application.
+ClickMenu is an existing Next.js restaurant menu and ordering application. Refactors should make the code easier to understand and maintain while preserving its behavior. Prefer clear responsibilities, feature-oriented folders, explicit dependency boundaries, predictable imports, and small verifiable changes.
 
-## 2. Mandatory refactoring principles
+## Understand before changing
 
-### Understand before changing
+Before substantial work, inspect the implementation and its dependencies. Trace state ownership, API contracts, database access, and business rules. Verify documentation against current source. Do not perform mechanical file splitting or introduce abstractions without a concrete reason.
 
-Before modifying code:
+## Preserve behavior
 
-1. Inspect the existing implementation and its dependencies.
-2. Identify the responsibilities currently combined in each large file.
-3. Trace where state originates, how it is updated, and where it is consumed.
-4. Identify API contracts, database dependencies, and business rules.
-5. Propose a migration plan before performing a substantial refactor.
+Unless specifically requested, preserve user-visible design, routes, API contracts, authentication/session security, database schema, catalog validation and revision conflicts, server-side order price validation, language switching, Arabic RTL, and error behavior.
 
-Do not assume the documentation accurately represents the current source code. Verify important details against the implementation.
+## Next.js App Router conventions
 
-### Preserve behavior
+- page.tsx defines a route; layout.tsx defines shared UI for a segment and descendants.
+- loading.tsx, error.tsx, and other special files must follow the installed Next.js conventions.
+- A file named pages.tsx is not an App Router route entry point.
+- Keep route files small; they should compose feature components.
+- Use nested layouts for persistent UI.
+- Prefer Server Components; add use client only for browser APIs, state, effects, handlers, or client interaction.
+- Do not make a whole route tree client-side just because one child needs interaction.
+- Read the relevant installed Next.js guide before using unfamiliar or changed APIs.
 
-Unless explicitly requested, refactoring must not change:
+## Actual organization
 
-- User-visible behavior or existing UI design.
-- Routes and API contracts.
-- Authentication and session behavior.
-- Database schema or stored data.
-- Catalog validation and saving behavior.
-- Order creation, status updates, and pricing rules.
-- Localization, language switching, or Arabic RTL behavior.
-- Error handling and optimistic concurrency behavior.
+### app/
 
-Prefer structural changes over redesigns.
+Owns routes, layouts, metadata, and API handlers. Customer routes are / and /menu. Admin routes are /admin/menu, /admin/categories, /admin/orders, /admin/restaurant, and /admin/qr. /admin redirects to /admin/menu.
 
-### Keep the architecture simple
+The nested app/admin/layout.tsx mounts the shared AdminProvider and persistent layout once. API handlers stay under app/api/ and should delegate reusable domain work to suitable modules.
 
-Do not introduce abstractions, providers, hooks, services, repositories, or additional libraries without a concrete reason.
+### components/admin/
 
-Do not split a component into dozens of components just to reduce line count. Extract components around meaningful responsibilities and reusable UI.
+Contains admin presentation grouped under layout/, auth/, menu/, categories/, orders/, restaurant/, and qr/. Shared layout belongs in layout/. Do not place domain state or database operations in feature UI.
 
-Do not move the entire repository into a new `src/` directory as part of this refactor unless there is a demonstrated benefit and a migration plan.
+### components/client/
 
-## 3. Next.js App Router conventions
+Contains storefront presentation grouped under restaurant/, menu/, cart/, ordering/, and shared/.
 
-The application uses the Next.js App Router.
+### components/ui/
 
-- `page.tsx` defines a route.
-- `layout.tsx` defines a shared layout for a route segment and its descendants.
-- `loading.tsx`, `error.tsx`, and other special files must follow the installed Next.js conventions.
-- A file named `pages.tsx` is not an App Router route entry point.
-- Keep route entry points small. They should compose or render feature components rather than contain complete feature implementations.
-- Use nested layouts for persistent UI shared across related routes.
-- Prefer Server Components by default.
-- Add `"use client"` only when browser APIs, state, effects, event handlers, or client-side interactivity require it.
-- Avoid making an entire route tree client-side merely because one child component needs interactivity.
-- Read the relevant documentation from the installed Next.js package before using unfamiliar or changed APIs.
+Contains generic UI primitives, not ClickMenu-specific business components.
 
-## 4. Target organization
+### features/
 
-Use the following architectural responsibilities.
+features/admin/ owns AdminProvider, shared catalog lifecycle, save reconciliation, and admin translations/context in features/admin/i18n/.
 
-### `app/`
+features/storefront/ owns catalog/cart and checkout hooks plus customer translations in features/storefront/i18n/.
 
-Owns routing, layouts, and route-level composition.
+Feature modules may depend on appropriate features and lib modules. They must not import from app/ or components/.
 
-Admin routes should be separated:
+### lib/, db/, and drizzle/
 
-- `/admin/menu`
-- `/admin/sections`
-- `/admin/orders`
-- `/admin/restaurant`
-- `/admin/qr`
+lib/ contains shared domain utilities, validation, server-side data access, and types; do not import React UI into lib/.
 
-`app/admin/layout.tsx` should provide the persistent admin layout, including the sidebar and shared navigation shell.
+db/ contains the Drizzle schema and Neon client. Keep the database client and stores server-only.
 
-`app/admin/page.tsx` should redirect to `/admin/menu`, unless a real dashboard overview is intentionally introduced.
+drizzle/ contains committed SQL migrations and metadata. Do not change the schema or migration files for a UI-only refactor.
 
-Each admin route should have its own `page.tsx`. The page should render the corresponding feature component rather than contain all of its implementation.
+### hooks/
 
-Keep API route handlers under `app/api/`. Route handlers should handle HTTP concerns and delegate reusable business operations to the appropriate module where useful.
+Contains generic shared React hooks. Feature-specific hooks belong under features/.
 
-### `components/admin/`
+## Critical domain constraints
 
-Contains UI components exclusive to the admin application.
+### Shared admin catalog
 
-Group components by responsibility:
+Menu, categories, and restaurant settings edit one catalog draft owned by AdminProvider. Preserve the saved snapshot, dirty state, validation, revision-based optimistic concurrency, 409 conflict detection, and explicit reload behavior. Saves must preserve edits made while a request is in flight. QR reads saved settings, not unsaved draft settings.
 
-- `layout/`
-- `auth/`
-- `menu/`
-- `sections/`
-- `orders/`
-- `restaurant/`
-- `qr/`
+### Orders and authentication
 
-Examples include the admin sidebar, menu editor, category editor, order card, restaurant settings form, and QR panel.
-
-Do not place unrelated admin components in one flat directory.
-
-### `components/client/`
-
-Contains customer-facing components.
-
-Group by responsibility, such as:
-
-- `restaurant/`
-- `menu/`
-- `cart/`
-- `ordering/`
-
-Use a different directory name only when it makes the distinction clearer and remains consistent throughout the repository.
-
-### `components/ui/`
-
-Contains generic, reusable interface primitives such as buttons, inputs, dialogs, tables, badges, and other design-system components.
-
-Do not put ClickMenu-specific business components here. Do not duplicate existing UI primitives when an appropriate component already exists.
-
-### `features/`
-
-Use this directory for domain logic that should not live inside presentation components.
-
-Examples include:
-
-- Admin catalog state and operations.
-- Admin session state.
-- Order-related data operations.
-- Storefront catalog and ordering workflows.
-
-A feature module may contain hooks, providers, types, validation, or service functions when those are genuinely part of the feature.
-
-Keep UI components in `components/`. Keep route files in `app/`.
-
-### `lib/`
-
-Contains shared utilities and infrastructure that are not specific to one UI section.
-
-Avoid turning `lib/` into a miscellaneous directory for unrelated feature code. Keep server-only database and sensitive operations out of client-importable modules.
-
-## 5. Critical ClickMenu architectural constraints
-
-### Shared catalog state
-
-The admin menu, sections, and restaurant settings currently edit different parts of the same catalog.
-
-The catalog is saved through a shared API and uses revision-based optimistic concurrency.
-
-A refactor must preserve:
-
-- A consistent source of truth for the catalog.
-- Unsaved-change detection.
-- Save and loading states.
-- Validation before saving.
-- Conflict detection and recovery.
-- Protection against silently overwriting newer saved data.
-
-Do not give each route an independent catalog copy that can overwrite changes made by another route.
-
-Choose a shared state approach only after tracing the current data flow. Keep the implementation as small as possible.
-
-### Orders
-
-Orders have their own API and lifecycle. Keep order loading, filtering, polling, notifications, and status updates separated from catalog editing.
-
-Do not couple order-specific state to the catalog editor without a demonstrated need.
-
-### Authentication
-
-Preserve the current passwordless authentication flow, session handling, cookie security, and sign-out behavior.
-
-Keep authentication state separate from presentation components where appropriate. Never expose secrets or sensitive session data to the browser.
+Orders own independent loading, filtering, polling, notification, and status state. Preserve passwordless email-code authentication, secure session cookies, and owner checks in every protected API. Never expose secrets or trust client identity.
 
 ### Customer ordering
 
-Preserve server-side validation of submitted orders. Never trust prices, totals, availability, or other business-critical values supplied by the browser.
+The server validates order details and derives prices, totals, and availability from the published catalog. Never trust client-provided prices or totals.
 
-Keep customer-facing ordering logic separate from admin catalog editing.
+### Localization
 
-### Internationalization
+Preserve English, French, and Arabic. Arabic must retain correct RTL behavior. Keep dictionaries in their owning feature i18n directory.
 
-Preserve English, French, and Arabic support.
+## Code quality
 
-Arabic layouts must retain correct RTL behavior. Avoid introducing hardcoded user-facing strings when the existing translation system should be used.
+- Give components one clear responsibility and typed props.
+- Keep business rules outside visual components where practical.
+- Avoid duplicate state owners, circular dependencies, unnecessary prop drilling, and barrel files without a clear benefit.
+- Keep imports predictable and avoid dependencies that point from features to presentation or routes.
+- Remove obsolete files only after checking references.
+- Do not add a library unless it has a justified requirement.
 
-## 6. Component design and code quality
+## Verification
 
-- Components should have one clear responsibility.
-- Use descriptive names based on what a component does.
-- Keep props explicit and appropriately typed.
-- Avoid excessively large components and deeply nested conditional rendering.
-- Extract reusable logic into hooks or domain modules only when it improves separation and clarity.
-- Avoid unnecessary prop drilling, but do not introduce global state merely to avoid passing a few props.
-- Keep data fetching and mutations out of purely presentational components when practical.
-- Keep validation and business rules outside visual components.
-- Avoid circular dependencies.
-- Use consistent import ordering and the existing TypeScript conventions.
-- Remove obsolete files and imports only after confirming they are no longer used.
+After meaningful changes, run npm run lint, npm test, npx tsc --noEmit, npm run build, and git diff --check. Run relevant tests and verify affected workflows where the environment permits. Never claim a check passed unless it was executed. Report infrastructure or runtime checks that could not be performed.
 
-## 7. Refactoring workflow
+## Contributor guide
 
-Perform substantial refactoring in small, verifiable phases.
+- New URL: app/<segment>/page.tsx.
+- Admin UI: components/admin/<feature>/.
+- Customer UI: components/client/<feature>/.
+- Generic primitive: components/ui/.
+- Feature state, operations, and translations: features/<feature>/.
+- Shared utilities and domain types: lib/.
+- Database schema/client: db/; migrations: drizzle/.
+- Tests: tests/<domain>/.
 
-### Phase 1 — Architecture audit
-
-Do not modify files.
-
-Inspect the repository and report:
-
-- Current project structure.
-- Oversized or multi-responsibility files.
-- Existing routes and layouts.
-- Component dependencies.
-- State ownership and data flow.
-- API and database dependencies.
-- Shared business rules that must be preserved.
-- Existing code that is already well separated and should remain unchanged.
-
-Produce a proposed target structure and a file-by-file migration map.
-
-### Phase 2 — Admin routing and layout
-
-Introduce the admin route structure and persistent admin layout.
-
-Extract the sidebar and shared header.
-
-Replace view-switching navigation with route navigation while preserving the current appearance and behavior.
-
-Keep the existing feature implementation intact as much as possible during this phase.
-
-### Phase 3 — Admin feature decomposition
-
-Move and refactor admin components into their respective section directories.
-
-Separate menu, sections, orders, restaurant settings, QR, and authentication responsibilities.
-
-Extract shared state and domain operations only after confirming their ownership and dependencies.
-
-### Phase 4 — Customer-facing decomposition
-
-Refactor oversized customer-facing components into focused menu, restaurant, cart, and ordering components.
-
-Keep customer-facing and admin UI concerns separate.
-
-### Phase 5 — Cleanup and documentation
-
-Remove obsolete files, dead code, and duplicate implementations after checking their references.
-
-Update the project structure documentation and any affected technical documentation.
-
-## 8. Verification requirements
-
-After each meaningful phase:
-
-- Run `npm run lint`.
-- Run `npm run build`.
-- Run relevant existing tests.
-- Check imports, route resolution, and client/server component boundaries.
-- Verify the affected user workflows.
-- Inspect the final changes for accidental behavior or styling regressions.
-
-At minimum, verify:
-
-- Admin navigation between every section.
-- Authentication, sign-out, and unauthenticated behavior.
-- Menu editing and saving.
-- Section editing and saving.
-- Restaurant settings and saving.
-- Conflict detection and reload behavior.
-- Order loading and status updates.
-- QR generation or display.
-- Customer menu browsing and ordering.
-- English, French, and Arabic layouts.
-
-Never claim a command or test passed unless it was actually executed successfully. Report checks that could not be run.
-
-## 9. Contributor experience
-
-The final structure should make it obvious:
-
-- Where a route is defined.
-- Where its page UI is implemented.
-- Where its reusable components live.
-- Where its state and business logic live.
-- Where its API and database operations live.
-- Which shared modules it depends on.
-
-Prefer predictable conventions over clever architecture.
-
-The goal is not to make the project look enterprise-sized. The goal is to make the existing application easy to read, extend, test, and maintain.
+Use the actual source as the authority and update the relevant docs when ownership, routes, API behavior, or tests change.

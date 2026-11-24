@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ImageUp, Link2 } from "lucide-react";
 import { MAX_IMAGE_BYTES } from "../../../lib/images";
-import { localizeError, useAdminCopy } from "../../../app/admin/admin-copy";
+import { localizeError, useAdminCopy } from "../../../features/admin/i18n/admin-copy";
 
 /** Thrown when even the smallest JPEG is over the server's limit. */
 class PhotoTooDetailed extends Error {}

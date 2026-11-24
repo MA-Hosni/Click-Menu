@@ -1,7 +1,7 @@
 "use client";
 
 import { QrCode } from "lucide-react";
-import { useAdminCopy } from "../../../app/admin/admin-copy";
+import { useAdminCopy } from "../../../features/admin/i18n/admin-copy";
 
 export default function QrPreview({
   restaurantName,

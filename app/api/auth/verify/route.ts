@@ -5,7 +5,6 @@ import {
   routeError,
 } from "../../../../lib/api-security";
 import {
-  normalizeEmail,
   sessionCookie,
   verifySignInCode,
 } from "../../../../lib/auth";
@@ -21,10 +20,6 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     await enforceLimit(postgresRateLimitStore(), "verifyPerIp", clientIp(request));
     const body = await readBoundedJson(request, 1_000);
-    // An owner who built a menu under ChatGPT sign-in keeps it when they sign
-    // in by email with the same address while that platform session is active.
-    
-    const email = normalizeEmail((body as { email?: unknown } | null)?.email);
     const { user, token } = await verifySignInCode(postgresAuthStore(), body);
     const secure = new URL(request.url).protocol === "https:";
     return jsonResponse(

@@ -2,7 +2,7 @@
 
 import { ArrowUpRight, Check, Copy } from "lucide-react";
 import type { Language } from "../../../lib/types";
-import { copy } from "../copy";
+import { copy } from "../../../features/storefront/i18n/copy";
 
 export default function OrderConfirmation({
   language,

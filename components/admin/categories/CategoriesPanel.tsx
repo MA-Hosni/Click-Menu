@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { pickText } from "../../../lib/text";
 import type { Language, MenuCategory, MenuItem } from "../../../lib/types";
-import { useAdminCopy } from "../../../app/admin/admin-copy";
+import { useAdminCopy } from "../../../features/admin/i18n/admin-copy";
 
 const languages: Language[] = ["en", "fr", "ar"];
 export const MAX_CATEGORIES = 20;
