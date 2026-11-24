@@ -2,11 +2,14 @@
   "name": "clickmenu",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=26 <27"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test tests",
+    "test": "node --test",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
