@@ -7,8 +7,6 @@ import { useAdmin } from "../../../features/admin/AdminProvider";
 import AdminHeader from "./AdminHeader";
 import AdminPageContent from "./AdminPageContent";
 import AdminSidebar from "./AdminSidebar";
-import "../../../app/admin/admin.css";
-
 const sections = ["menu", "categories", "orders", "restaurant", "qr"] as const;
 type AdminSection = (typeof sections)[number];
 
