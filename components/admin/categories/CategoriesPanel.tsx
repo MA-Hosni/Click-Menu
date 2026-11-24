@@ -1,9 +1,9 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { pickText } from "../../lib/text";
-import type { Language, MenuCategory, MenuItem } from "../../lib/types";
-import { useAdminCopy } from "./admin-copy";
+import { pickText } from "../../../lib/text";
+import type { Language, MenuCategory, MenuItem } from "../../../lib/types";
+import { useAdminCopy } from "../../../app/admin/admin-copy";
 
 const languages: Language[] = ["en", "fr", "ar"];
 export const MAX_CATEGORIES = 20;

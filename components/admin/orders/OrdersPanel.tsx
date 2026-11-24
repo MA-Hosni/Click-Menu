@@ -3,17 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BellRing,
-  Check,
-  ChefHat,
   RefreshCw,
-  RotateCcw,
   Volume2,
   VolumeX,
-  X,
 } from "lucide-react";
-import { formatPrice } from "../../lib/cart";
-import type { OrderRecord, OrderStatus } from "../../lib/orders";
-import { useAdminCopy } from "./admin-copy";
+import { formatPrice } from "../../../lib/cart";
+import type { OrderRecord, OrderStatus } from "../../../lib/orders";
+import { useAdminCopy } from "../../../app/admin/admin-copy";
+import OrderCard from "./OrderCard";
 
 /** How often an open Orders screen checks for new orders. */
 const REFRESH_MS = 30_000;
@@ -69,9 +66,12 @@ export default function OrdersPanel({ signedIn }: { signedIn: boolean }) {
   }, [sound]);
 
   useEffect(() => {
-    try {
-      setSound(localStorage.getItem(SOUND_KEY) !== "off");
-    } catch {}
+    const timer = window.setTimeout(() => {
+      try {
+        setSound(localStorage.getItem(SOUND_KEY) !== "off");
+      } catch {}
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   function chime() {
@@ -139,7 +139,7 @@ export default function OrdersPanel({ signedIn }: { signedIn: boolean }) {
   );
   useEffect(() => {
     if (!signedIn) return;
-    void load();
+    const initialLoad = window.setTimeout(() => void load(), 0);
     const timer = setInterval(() => {
       if (document.visibilityState === "visible") void load(true);
     }, REFRESH_MS);
@@ -149,6 +149,7 @@ export default function OrdersPanel({ signedIn }: { signedIn: boolean }) {
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      window.clearTimeout(initialLoad);
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
@@ -326,109 +327,15 @@ export default function OrdersPanel({ signedIn }: { signedIn: boolean }) {
       )}
       <ol className="admin-order-list">
         {visible.map((order) => (
-          <li
-            className={`admin-order admin-order-${order.status}${fresh.has(order.id) ? " admin-order-fresh" : ""}`}
+          <OrderCard
             key={order.id}
-          >
-            <div className="admin-order-head">
-              <div>
-                <strong>
-                  {order.name}
-                  <span className={`admin-order-status ${order.status}`}>
-                    {t.status[order.status]}
-                  </span>
-                </strong>
-                <span>
-                  {t.orderType[order.type]}
-                  {order.table && ` · ${t.table(order.table)}`}
-                </span>
-              </div>
-              <div className="admin-order-total">
-                <strong>{money(order.total)}</strong>
-                <time dateTime={new Date(order.createdAt).toISOString()}>
-                  {time.format(order.createdAt)}
-                </time>
-              </div>
-            </div>
-            <ul>
-              {order.lines.map((line, i) => (
-                <li key={i}>
-                  <span>
-                    {line.quantity} × {line.name}
-                    {line.options.length > 0 && (
-                      <small> ({line.options.join(", ")})</small>
-                    )}
-                  </span>
-                  <span>{money(line.total)}</span>
-                </li>
-              ))}
-              {order.deliveryFee > 0 && (
-                <li>
-                  <span>{t.delivery}</span>
-                  <span>{money(order.deliveryFee)}</span>
-                </li>
-              )}
-            </ul>
-            {order.address && <p>{t.addressLine(order.address)}</p>}
-            {order.notes && <p>{t.notesLine(order.notes)}</p>}
-            <div className="admin-order-actions">
-              {order.status === "new" && (
-                <>
-                  <button
-                    type="button"
-                    className="admin-primary"
-                    disabled={pending === order.id}
-                    onClick={() => void changeStatus(order, "preparing")}
-                  >
-                    <ChefHat size={15} />
-                    {t.confirmPrepare}
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-text-button"
-                    disabled={pending === order.id}
-                    onClick={() => void changeStatus(order, "cancelled")}
-                  >
-                    <X size={15} />
-                    {t.notReceived}
-                  </button>
-                </>
-              )}
-              {order.status === "preparing" && (
-                <>
-                  <button
-                    type="button"
-                    className="admin-primary"
-                    disabled={pending === order.id}
-                    onClick={() => void changeStatus(order, "done")}
-                  >
-                    <Check size={15} />
-                    {t.markDone}
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-text-button"
-                    disabled={pending === order.id}
-                    onClick={() => void changeStatus(order, "cancelled")}
-                  >
-                    <X size={15} />
-                    {t.cancelOrder}
-                  </button>
-                </>
-              )}
-              {(order.status === "done" || order.status === "cancelled") && (
-                <button
-                  type="button"
-                  className="admin-text-button"
-                  disabled={pending === order.id}
-                  onClick={() => void changeStatus(order, "preparing")}
-                >
-                  <RotateCcw size={15} />
-                  {t.reopen}
-                </button>
-              )}
-            </div>
-          </li>
+            order={order}
+            fresh={fresh.has(order.id)}
+            pending={pending === order.id}
+            money={money}
+            time={time}
+            onChangeStatus={(row, status) => void changeStatus(row, status)}
+          />
         ))}
       </ol>
       <details className="admin-order-help">

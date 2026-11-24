@@ -4,7 +4,7 @@ import { createContext, useContext } from "react";
 import type { Language, OrderType } from "../../lib/types";
 import type { OrderStatus } from "../../lib/orders";
 
-/** Owner dashboard wording. Customers' text lives in app/components/copy.ts. */
+/** Owner dashboard wording. Customer text lives in components/client/copy.ts. */
 const en = {
   languageName: "English",
   dashboardLanguage: "Dashboard language",

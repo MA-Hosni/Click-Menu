@@ -132,7 +132,7 @@
   display: grid;
   gap: 4px;
 }
-.admin-sidebar nav button {
+.admin-sidebar nav a {
   background: transparent;
   border: 0;
   border-radius: 6px;
@@ -144,18 +144,18 @@
   text-align: start;
   color: var(--admin-muted);
 }
-.admin-sidebar nav button svg:last-child {
+.admin-sidebar nav a svg:last-child {
   margin-inline-start: auto;
   visibility: hidden;
 }
-.admin-sidebar nav button.active {
+.admin-sidebar nav a.active {
   color: var(--admin-ink);
   background: var(--admin-active);
 }
-.admin-sidebar nav button.active svg:last-child {
+.admin-sidebar nav a.active svg:last-child {
   visibility: visible;
 }
-.admin-sidebar nav button:hover {
+.admin-sidebar nav a:hover {
   color: var(--admin-ink);
 }
 .admin-sidebar-bottom {

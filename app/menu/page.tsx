@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import Restaurant from "../components/Restaurant";
+import { Suspense } from "react";
+import { connection } from "next/server";
+import RestaurantPage from "../../components/client/restaurant/RestaurantPage";
 import { readPublicCatalog } from "../../lib/catalog-store";
 
 /**
@@ -36,6 +38,18 @@ export async function generateMetadata({
   }
 }
 
+async function RequestTimeMetadataBoundary() {
+  await connection();
+  return null;
+}
+
 export default function Menu() {
-  return <Restaurant menuOnly />;
+  return (
+    <>
+      <RestaurantPage menuOnly />
+      <Suspense fallback={null}>
+        <RequestTimeMetadataBoundary />
+      </Suspense>
+    </>
+  );
 }

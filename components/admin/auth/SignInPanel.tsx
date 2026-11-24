@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Mail } from "lucide-react";
-import { localizeError, useAdminCopy } from "./admin-copy";
+import { localizeError, useAdminCopy } from "../../../app/admin/admin-copy";
 
 const RESEND_AFTER_S = 60;
 
