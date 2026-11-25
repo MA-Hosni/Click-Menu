@@ -16,6 +16,8 @@ ClickMenu is an existing Next.js restaurant menu and ordering application. Refac
 
 Before substantial work, inspect the implementation and its dependencies. Trace state ownership, API contracts, database access, and business rules. Verify documentation against current source. Do not perform mechanical file splitting or introduce abstractions without a concrete reason.
 
+Preserve all existing user changes; never reset, discard, overwrite, or stash them. Treat the current source as authoritative when it differs from documentation.
+
 ## Preserve behavior
 
 Unless specifically requested, preserve user-visible design, routes, API contracts, authentication/session security, database schema, catalog validation and revision conflicts, server-side order price validation, language switching, Arabic RTL, and error behavior.
@@ -97,6 +99,8 @@ Preserve English, French, and Arabic. Arabic must retain correct RTL behavior. K
 - Keep imports predictable and avoid dependencies that point from features to presentation or routes.
 - Remove obsolete files only after checking references.
 - Do not add a library unless it has a justified requirement.
+- Do not weaken authentication, authorization, session security, or server-side validation.
+- Treat database schema and migration changes as high risk: inspect generated SQL, test against an isolated development database, and review before applying to production.
 
 ## Verification
 
@@ -114,3 +118,5 @@ After meaningful changes, run npm run lint, npm test, npx tsc --noEmit, npm run 
 - Tests: tests/<domain>/.
 
 Use the actual source as the authority and update the relevant docs when ownership, routes, API behavior, or tests change.
+
+Before opening a pull request, run the checks listed above and report any that could not be completed.

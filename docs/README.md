@@ -10,5 +10,6 @@ Use this index to find maintained technical references. Source code is authorita
 - DATABASE_SCHEMA.md: Drizzle tables and migration workflow.
 - DEPLOYMENT_AND_RUNBOOK.md: environment configuration and operational checks.
 - TESTING_STRATEGY.md: the current Node test runner and coverage boundaries.
+- [../CONTRIBUTING.md](../CONTRIBUTING.md): local development, database safety, and pull request guidance.
 
 Start locally with the root README. Never put secrets in documentation or commit a populated .env.local.

@@ -4,7 +4,9 @@ This guide describes the current application requirements without assuming a hos
 
 ## Runtime requirements
 
-- Node.js 20.9 or later and npm.
+- Node.js 26 and npm. The repository declares `"node": ">=26 <27"` in `package.json`; use Node.js 26 for local development and deployment.
+- Next.js 16.4.6 itself has a lower minimum requirement of Node.js 20.9, but the repository's engine requirement is stricter and takes precedence.
+- npm is the package manager; `package-lock.json` is the npm lockfile.
 - PostgreSQL reachable from the application; the current driver is Neon serverless PostgreSQL.
 - Database migrations applied before the app serves stored data.
 - In production, Resend credentials and a verified sender for owner email sign-in.

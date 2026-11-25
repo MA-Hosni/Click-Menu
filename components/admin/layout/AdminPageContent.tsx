@@ -94,16 +94,22 @@ export default function AdminPageContent({
       )}
       {dirty && <p className="admin-unsaved">{t.unsaved}</p>}
       {loading ? (
-        <div className="admin-loading" role="status">
-          <p>{t.opening}</p>
-          {[1, 2, 3, 4].map((number) => (
-            <div className="admin-skeleton-row" key={number}>
-              <span />
-              <div />
-              <span />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="admin-loading" role="status">
+            <p>{t.opening}</p>
+            {[1, 2, 3, 4].map((number) => (
+              <div className="admin-skeleton-row" key={number}>
+                <span />
+                <div />
+                <span />
+              </div>
+            ))}
+          </div>
+          {/* Keep the route segment rendered while the session check is pending. */}
+          <div hidden aria-hidden="true">
+            {children}
+          </div>
+        </>
       ) : (
         <>
           {!user && <SignInPanel onSignedIn={() => void reload(t)} />}

@@ -2,12 +2,14 @@
 
 ## Commands
 
-    npm test
-    npm run lint
-    npx tsc --noEmit
-    npm run build
+| Purpose | Command |
+| --- | --- |
+| Lint | `npm run lint` |
+| Unit tests | `npm test` |
+| TypeScript check | `npx tsc --noEmit` |
+| Production build | `npm run build` |
 
-Tests use Node's built-in node:test and strict assertions. The test script is node --test tests. Tests are .mjs files; tests/support/register-types.mjs uses the TypeScript compiler already installed by the project to load actual TypeScript modules. This needs no test library dependency, Neon connection, or production fixture.
+Tests use Node's built-in `node:test` and strict assertions. The `npm test` script runs `node --test`, which discovers the repository's `.test.mjs` files. `tests/support/register-types.mjs` uses the TypeScript compiler already installed by the project to load actual TypeScript modules. This needs no test library dependency, Neon connection, or production fixture.
 
 ## Current coverage
 

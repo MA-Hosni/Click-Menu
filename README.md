@@ -15,7 +15,9 @@ ClickMenu is a multilingual restaurant menu and ordering application. Customers 
 
 ClickMenu uses Next.js 16 App Router, React 19, TypeScript, Drizzle ORM, Neon serverless PostgreSQL, custom CSS, Tailwind CSS 4, and Node's built-in test runner.
 
-Use Node.js 20.9 or later and npm. Database-backed features require PostgreSQL/Neon credentials. Production email sign-in requires a Resend API key and verified sender.
+Use Node.js 26 and npm. This repository declares `"node": ">=26 <27"` in `package.json`. Next.js 16.4.6 itself has a lower minimum of Node.js 20.9, but the repository's engine requirement is stricter and takes precedence. npm is the project's package manager and `package-lock.json` is the lockfile.
+
+Database-backed features require PostgreSQL/Neon credentials. Production email sign-in requires a Resend API key and verified sender.
 
 ## Install and configure
 
@@ -59,4 +61,4 @@ Run the development server:
 | /api/catalog | Public catalog; no shop returns the demo catalog |
 | /api/orders | Customer order submission |
 
-See docs/README.md for technical documentation. See AGENTS.md and docs/PROJECT_STRUCTURE.md for contributor guidance.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development and pull request guidance. See [docs/README.md](docs/README.md) for technical documentation and [AGENTS.md](AGENTS.md) and [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for architecture guidance.
