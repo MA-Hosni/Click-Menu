@@ -277,6 +277,7 @@ function ComboboxChipsInput({
   children,
   ...props
 }: ComboboxPrimitive.Input.Props) {
+  void children
   return (
     <ComboboxPrimitive.Input
       data-slot="combobox-chip-input"

@@ -1,4 +1,4 @@
-import Restaurant from "./components/Restaurant";
+import RestaurantPage from "../components/client/restaurant/RestaurantPage";
 export default function Home() {
-  return <Restaurant />;
+  return <RestaurantPage />;
 }

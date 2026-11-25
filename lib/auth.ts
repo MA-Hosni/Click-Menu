@@ -17,7 +17,7 @@ export interface StoredCode {
   createdAt: number;
 }
 
-/** Storage the sign-in flow needs; D1 in production, node:sqlite in the preview. */
+/** Storage operations required by passwordless sign-in and session handling. */
 export interface AuthStore {
   getCode(email: string): Promise<StoredCode | null> | StoredCode | null;
   putCode(email: string, code: StoredCode): Promise<void> | void;

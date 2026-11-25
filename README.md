@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ClickMenu
 
-## Getting Started
+ClickMenu is a multilingual restaurant menu and ordering application. Customers browse restaurant menus, customize items, review a cart, and continue an order through WhatsApp. Restaurant owners manage their catalog and review order records in a passwordless admin dashboard.
 
-First, run the development server:
+## Capabilities
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- English, French, and Arabic customer menus, including Arabic RTL.
+- Category navigation, search, item options, persistent browser cart, and checkout validation.
+- WhatsApp order messages and server-side order validation and persistence.
+- Passwordless email-code owner sign-in.
+- Admin catalog editing, restaurant settings, QR generation, and order status management.
+- Revision checks that reject conflicting catalog saves.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Technology and prerequisites
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+ClickMenu uses Next.js 16 App Router, React 19, TypeScript, Drizzle ORM, Neon serverless PostgreSQL, custom CSS, Tailwind CSS 4, and Node's built-in test runner.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Use Node.js 26 and npm. This repository declares `"node": ">=26 <27"` in `package.json`. Next.js 16.4.6 itself has a lower minimum of Node.js 20.9, but the repository's engine requirement is stricter and takes precedence. npm is the project's package manager and `package-lock.json` is the lockfile.
 
-## Learn More
+Database-backed features require PostgreSQL/Neon credentials. Production email sign-in requires a Resend API key and verified sender.
 
-To learn more about Next.js, take a look at the following resources:
+## Install and configure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+    npm ci
+    Copy-Item .env.example .env.local
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Replace the example values in .env.local. DATABASE_URL is used by Drizzle Kit; DATABASE_URL_POOLED is used by the application. Both are required for the documented database workflow. RESEND_API_KEY and EMAIL_FROM are required for production sign-in. In development, leaving both blank causes the code to be displayed in the sign-in screen.
 
-## Deploy on Vercel
+Apply the committed migration:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+    npm run db:migrate
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Run the development server:
+
+    npm run dev
+
+## Commands
+
+    npm run dev
+    npm run build
+    npm run start
+    npm run lint
+    npm test
+    npx tsc --noEmit
+    npm run db:generate
+    npm run db:migrate
+    npm run db:studio
+
+## Routes
+
+| URL | Purpose |
+| --- | --- |
+| / | Customer landing page and menu |
+| /menu | Menu page; accepts shop and table query parameters |
+| /admin | Redirects to /admin/menu |
+| /admin/menu | Menu editor |
+| /admin/categories | Category editor |
+| /admin/orders | Owner order management |
+| /admin/restaurant | Restaurant settings |
+| /admin/qr | QR generation |
+| /api/catalog | Public catalog; no shop returns the demo catalog |
+| /api/orders | Customer order submission |
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local development and pull request guidance. See [docs/README.md](docs/README.md) for technical documentation and [AGENTS.md](AGENTS.md) and [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for architecture guidance.
