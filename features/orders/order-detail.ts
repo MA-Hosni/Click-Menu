@@ -30,7 +30,6 @@ export interface DineInOrderDetail {
   customerName: string | null;
   customerNotes: string | null;
   tableLabel: string;
-  currency: "TND";
   subtotalMillimes: number;
   totalMillimes: number;
   items: DineInOrderDetailItem[];
@@ -43,7 +42,6 @@ interface OrderHeaderRow {
   customerName: string | null;
   customerNotes: string | null;
   tableLabel: string;
-  currency: string;
   subtotalMillimes: string;
   totalMillimes: string;
 }
@@ -110,8 +108,7 @@ export function buildDineInOrderDetail(
     !DINE_IN_ORDER_STATUSES.includes(header.status as (typeof DINE_IN_ORDER_STATUSES)[number]) ||
     (header.customerName !== null && typeof header.customerName !== "string") ||
     (header.customerNotes !== null && typeof header.customerNotes !== "string") ||
-    !nonemptyText(header.tableLabel) ||
-    header.currency !== "TND"
+    !nonemptyText(header.tableLabel)
   )
     throw invalidStoredDetail();
 
@@ -159,7 +156,6 @@ export function buildDineInOrderDetail(
     customerName: header.customerName,
     customerNotes: header.customerNotes,
     tableLabel: header.tableLabel,
-    currency: "TND",
     subtotalMillimes,
     totalMillimes,
     items,
@@ -178,7 +174,6 @@ export async function queryDineInOrderDetail<Database extends PgDatabase<PgQuery
       customerName: dineInOrders.customerName,
       customerNotes: dineInOrders.customerNotes,
       tableLabel: dineInOrders.tableLabelSnapshot,
-      currency: dineInOrders.currency,
       subtotalMillimes: sql<string>`${dineInOrders.subtotalMillimes}::text`,
       totalMillimes: sql<string>`${dineInOrders.totalMillimes}::text`,
     })

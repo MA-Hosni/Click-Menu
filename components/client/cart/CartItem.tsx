@@ -1,6 +1,6 @@
 import { Minus, Plus, X } from "lucide-react";
 import type { CartLine } from "../../../lib/cart";
-import type { Currency, Language } from "../../../lib/types";
+import type { Language } from "../../../lib/types";
 import { formatPrice } from "../../../lib/cart";
 import { pickText } from "../../../lib/text";
 import Photo from "../shared/Photo";
@@ -8,12 +8,10 @@ import Photo from "../shared/Photo";
 export default function CartItem({
   line,
   language,
-  currency,
   onQuantityChange,
 }: {
   line: CartLine;
   language: Language;
-  currency: Currency;
   onQuantityChange: (key: string, quantity: number) => void;
 }) {
   const name = pickText(line.item.name, language);
@@ -24,7 +22,7 @@ export default function CartItem({
       <div className="cart-line-body">
         <div className="cart-line-title">
           <h3>{name}</h3>
-          <strong>{formatPrice(line.total, language, currency)}</strong>
+          <strong>{formatPrice(line.total, language)} TND</strong>
         </div>
         {line.options.length > 0 && (
           <p>{line.options.map((option) => pickText(option.label, language)).join(", ")}</p>

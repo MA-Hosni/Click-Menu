@@ -218,17 +218,17 @@ describe("order tracking recovery schema and migration", () => {
     assert.match(checkSql, /tracking_recovery_auth_tag/);
     assert.match(checkSql, /tracking_recovery_ciphertext.*\{57\}\[AQgw\]==/);
     assert.match(checkSql, /tracking_recovery_auth_tag.*\{21\}\[AQgw\]==/);
-    const migration = readFileSync(new URL("../../../drizzle/0011_order_tracking_recovery.sql", import.meta.url), "utf8");
-    const migrationCheck = migration.match(/ADD CONSTRAINT "dine_in_orders_tracking_recovery_envelope_check"\s+CHECK\s*\(([\s\S]*?)\);/);
-    assert.ok(migrationCheck, "migration must define the recovery envelope check");
-    const snapshot = JSON.parse(readFileSync(new URL("../../../drizzle/meta/0011_snapshot.json", import.meta.url), "utf8"));
+    const migration = readFileSync(new URL("../../../drizzle/0000_init.sql", import.meta.url), "utf8");
+    const migrationCheck = migration.match(/CONSTRAINT "dine_in_orders_tracking_recovery_envelope_check"\s+CHECK\s*\(([\s\S]*?)\);/);
+    assert.ok(migrationCheck, "initial migration must define the recovery envelope check");
+    const snapshot = JSON.parse(readFileSync(new URL("../../../drizzle/meta/0000_snapshot.json", import.meta.url), "utf8"));
     const snapshotCheck = snapshot.tables["public.dine_in_orders"].checkConstraints.dine_in_orders_tracking_recovery_envelope_check.value;
     const normalizeExpression = (value) => value
       .replace(/\s+/g, " ")
       .trim()
       .replace(/\s*([()])\s*/g, "$1")
       .replaceAll('"dine_in_orders".', "");
-    assert.equal(normalizeExpression(migrationCheck[1]), normalizeExpression(checkSql));
+    assert.equal(normalizeExpression(migrationCheck[1].replace(/\)\s*$/, "")), normalizeExpression(checkSql));
     assert.equal(normalizeExpression(snapshotCheck), normalizeExpression(checkSql));
 
     const patternFor = (expression, field) => {
@@ -249,25 +249,21 @@ describe("order tracking recovery schema and migration", () => {
     assert.equal(tagPattern.test(noncanonicalBase64PadBits(validTag)), false);
   });
 
-  it("adds nullable fields without backfill or raw token/key columns and keeps metadata ordered", () => {
-    const migration = readFileSync(new URL("../../../drizzle/0011_order_tracking_recovery.sql", import.meta.url), "utf8");
-    assert.match(migration, /ADD COLUMN "tracking_recovery_version" integer/);
-    assert.match(migration, /ADD COLUMN "tracking_recovery_nonce" text/);
-    assert.match(migration, /ADD COLUMN "tracking_recovery_ciphertext" text/);
-    assert.match(migration, /ADD COLUMN "tracking_recovery_auth_tag" text/);
-    assert.doesNotMatch(migration, /UPDATE\s+"?dine_in_orders"?/i);
+  it("includes nullable recovery fields in the fresh schema without raw token/key columns", () => {
+    const migration = readFileSync(new URL("../../../drizzle/0000_init.sql", import.meta.url), "utf8");
+    const snapshot = JSON.parse(readFileSync(new URL("../../../drizzle/meta/0000_snapshot.json", import.meta.url), "utf8"));
+    for (const [name, type] of [
+      ["tracking_recovery_version", "integer"],
+      ["tracking_recovery_nonce", "text"],
+      ["tracking_recovery_ciphertext", "text"],
+      ["tracking_recovery_auth_tag", "text"],
+    ]) {
+      assert.match(migration, new RegExp(`"${name}" ${type},`));
+      assert.equal(snapshot.tables["public.dine_in_orders"].columns[name].notNull, false);
+    }
     assert.doesNotMatch(migration, /ADD COLUMN "(?:tracking_token|idempotency_key)"\b/i);
-
-    const snapshot10 = JSON.parse(readFileSync(new URL("../../../drizzle/meta/0010_snapshot.json", import.meta.url), "utf8"));
-    const snapshot11 = JSON.parse(readFileSync(new URL("../../../drizzle/meta/0011_snapshot.json", import.meta.url), "utf8"));
+    assert.ok(snapshot.tables["public.dine_in_orders"].checkConstraints.dine_in_orders_tracking_recovery_envelope_check);
     const journal = JSON.parse(readFileSync(new URL("../../../drizzle/meta/_journal.json", import.meta.url), "utf8"));
-    const entry = journal.entries.find((item) => item.tag === "0011_order_tracking_recovery");
-    assert.ok(entry);
-    assert.equal(entry.idx, 11);
-    assert.ok(entry.when > journal.entries.find((item) => item.tag === "0010_order_idempotency_and_history").when);
-    assert.equal(snapshot11.prevId, snapshot10.id);
-    for (const name of ["tracking_recovery_version", "tracking_recovery_nonce", "tracking_recovery_ciphertext", "tracking_recovery_auth_tag"])
-      assert.equal(snapshot11.tables["public.dine_in_orders"].columns[name].notNull, false);
-    assert.ok(snapshot11.tables["public.dine_in_orders"].checkConstraints.dine_in_orders_tracking_recovery_envelope_check);
+    assert.deepEqual(journal.entries.map(({ idx, tag }) => ({ idx, tag })), [{ idx: 0, tag: "0000_init" }]);
   });
 });

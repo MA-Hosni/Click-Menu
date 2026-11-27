@@ -21,8 +21,8 @@ export interface ExistingDineInOrder {
 export interface LockedCatalogRecord {
   payload: string;
   revision: number;
-  tndReviewedRevision: number | null;
-  tndReviewedAt: number | null;
+  priceReviewedRevision: number | null;
+  priceReviewedAt: number | null;
 }
 
 export interface LockedRestaurantTable {
@@ -39,7 +39,6 @@ export interface NewDineInOrder {
   tableId: string;
   tableLabelSnapshot: string;
   status: "pending";
-  currency: "TND";
   subtotalMillimes: number;
   totalMillimes: number;
   customerName: string | null;
@@ -72,7 +71,6 @@ export interface InsertedDineInOrder {
   id: string;
   tableLabelSnapshot: string;
   status: string;
-  currency: string;
   subtotalMillimes: number;
   totalMillimes: number;
   createdAt: number;
@@ -148,8 +146,8 @@ export function createPostgresDineInOrderPersistence(
         .select({
           payload: restaurantCatalogs.payload,
           revision: restaurantCatalogs.revision,
-          tndReviewedRevision: restaurantCatalogs.tndReviewedRevision,
-          tndReviewedAt: restaurantCatalogs.tndReviewedAt,
+          priceReviewedRevision: restaurantCatalogs.priceReviewedRevision,
+          priceReviewedAt: restaurantCatalogs.priceReviewedAt,
         })
         .from(restaurantCatalogs)
         .where(eq(restaurantCatalogs.id, 1))
@@ -184,7 +182,6 @@ export function createPostgresDineInOrderPersistence(
           id: dineInOrders.id,
           tableLabelSnapshot: dineInOrders.tableLabelSnapshot,
           status: dineInOrders.status,
-          currency: dineInOrders.currency,
           subtotalMillimes: dineInOrders.subtotalMillimes,
           totalMillimes: dineInOrders.totalMillimes,
           createdAt: dineInOrders.createdAt,

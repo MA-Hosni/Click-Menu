@@ -120,15 +120,12 @@ function settings(value: unknown): RestaurantSettings {
       );
     }
   }
-  if (row.currency !== "TND")
-    throw new CatalogValidationError("Choose a supported catalog currency.");
   return {
     name: string(row.name, "Restaurant name", 100),
     tagline: string(row.tagline, "Tagline", 150, true),
     description: string(row.description, "Description", 1000, true),
     address: string(row.address, "Address", 300, true),
     hours: string(row.hours, "Opening hours", 300, true),
-    currency: "TND",
     publicUrl,
   };
 }
@@ -227,16 +224,6 @@ export function validateCatalog(value: unknown): Catalog {
     items,
     revision: integer(row.revision, "Revision", 2_000_000_000),
   };
-}
-
-/** Validates the complete catalog before it can be used for TND order pricing. */
-export function validateTndCatalog(value: unknown): Catalog {
-  const catalog = validateCatalog(value);
-  if (catalog.settings.currency !== "TND")
-    throw new CatalogValidationError(
-      "The catalog currency must be TND.",
-    );
-  return catalog;
 }
 
 /**

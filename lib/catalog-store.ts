@@ -16,8 +16,8 @@ const catalogOperations = createCatalogOperations({
       .select({
         payload: restaurantCatalogs.payload,
         revision: restaurantCatalogs.revision,
-        tndReviewedRevision: restaurantCatalogs.tndReviewedRevision,
-        tndReviewedAt: restaurantCatalogs.tndReviewedAt,
+        priceReviewedRevision: restaurantCatalogs.priceReviewedRevision,
+        priceReviewedAt: restaurantCatalogs.priceReviewedAt,
       })
       .from(restaurantCatalogs)
       .where(eq(restaurantCatalogs.id, SINGLETON_ID))
@@ -31,8 +31,8 @@ const catalogOperations = createCatalogOperations({
         id: SINGLETON_ID,
         payload,
         revision,
-        tndReviewedRevision: null,
-        tndReviewedAt: null,
+        priceReviewedRevision: null,
+        priceReviewedAt: null,
         updatedAt,
       })
       .onConflictDoNothing()
@@ -45,8 +45,8 @@ const catalogOperations = createCatalogOperations({
       .set({
         payload,
         revision,
-        tndReviewedRevision: null,
-        tndReviewedAt: null,
+        priceReviewedRevision: null,
+        priceReviewedAt: null,
         updatedAt,
       })
       .where(
@@ -62,15 +62,15 @@ const catalogOperations = createCatalogOperations({
     const result = await getDb().execute(sql`
       WITH reviewed AS (
         UPDATE restaurant_catalogs
-        SET tnd_reviewed_revision = revision,
-            tnd_reviewed_at = ${reviewedAt}
+        SET price_reviewed_revision = revision,
+            price_reviewed_at = ${reviewedAt}
         WHERE id = ${SINGLETON_ID}
           AND revision = ${expectedRevision}
           AND payload = ${expectedPayload}
         RETURNING revision
       ), audited AS (
         INSERT INTO admin_audit_events (id, action, actor, created_at)
-        SELECT ${eventId}, 'tnd_price_reviewed', ${actor}, ${reviewedAt}
+        SELECT ${eventId}, 'catalog_prices_reviewed', ${actor}, ${reviewedAt}
         FROM reviewed
         RETURNING id
       )

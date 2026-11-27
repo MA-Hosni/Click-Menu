@@ -1,5 +1,4 @@
 export type Language = "en" | "fr" | "ar";
-export type Currency = "TND";
 export type LocalizedText = Record<Language, string>;
 /** A menu section ID chosen by the owner. */
 export type Category = string;
@@ -12,7 +11,7 @@ export interface MenuCategory {
 export interface MenuOption {
   id: string;
   label: LocalizedText;
-  /** Additional price, in integer minor units for settings.currency. */
+  /** Additional price in integer units scaled by 1,000. */
   price: number;
 }
 
@@ -21,7 +20,7 @@ export interface MenuItem {
   category: Category;
   name: LocalizedText;
   description: LocalizedText;
-  /** Price in integer minor units for settings.currency. */
+  /** Price in integer units scaled by 1,000. */
   price: number;
   image: string | null;
   tags: string[];
@@ -35,7 +34,6 @@ export interface RestaurantSettings {
   description: string;
   address: string;
   hours: string;
-  currency: Currency;
   /** Public site origin or base URL. Blank until configured. */
   publicUrl: string;
 }

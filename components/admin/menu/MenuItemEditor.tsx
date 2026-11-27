@@ -40,7 +40,7 @@ export default function MenuItemEditor({
     editItem({ options: item.options.map((option, i) => i === index ? { ...option, ...patch } : option) });
   }
   function editPrice(value: string, target: "item" | number) {
-    const price = parseMajorUnits(value, catalog.settings.currency);
+    const price = parseMajorUnits(value);
     if (price === null) return;
     if (target === "item") editItem({ price });
     else editOption(target, { price });
@@ -126,9 +126,9 @@ export default function MenuItemEditor({
                               type="number"
                               inputMode="decimal"
                               min="0"
-                              max={1_000_000 / minorUnitsPerMajorUnit(catalog.settings.currency)}
+                              max={1_000_000 / minorUnitsPerMajorUnit()}
                               step="0.001"
-                              value={formatMajorUnitsInput(item.price, catalog.settings.currency)}
+                              value={formatMajorUnitsInput(item.price)}
                               onChange={(e) => editPrice(e.target.value, "item")}
                             />
                           </label>
@@ -235,9 +235,9 @@ export default function MenuItemEditor({
                                     type="number"
                                     inputMode="decimal"
                                     min="0"
-                                    max={1_000_000 / minorUnitsPerMajorUnit(catalog.settings.currency)}
+                                    max={1_000_000 / minorUnitsPerMajorUnit()}
                                     step="0.001"
-                                    value={formatMajorUnitsInput(option.price, catalog.settings.currency)}
+                                    value={formatMajorUnitsInput(option.price)}
                                     onChange={(e) => editPrice(e.target.value, index)}
                                   />
                                 </label>
@@ -301,7 +301,7 @@ export default function MenuItemEditor({
                               t.previewDescription}
                           </p>
                           <strong>
-                            {formatPrice(item.price, language, catalog.settings.currency)}
+                            {formatPrice(item.price, language)} TND
                           </strong>
                           <span className="admin-preview-status">
                             {item.available

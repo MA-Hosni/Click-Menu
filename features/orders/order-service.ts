@@ -10,7 +10,7 @@ import {
   DineInOrderDomainError,
   identifyDineInOrderRequest,
   prepareDineInOrder,
-  createTrustedTndCatalogReadiness,
+  createTrustedCatalogReadiness,
 } from "./order-domain";
 import {
   generateTrackingToken,
@@ -140,16 +140,16 @@ export function createDineInOrderService<Transaction>(
         // active-token check. Competing updates serialize before this snapshot.
         const storedCatalog = await persistence.lockCatalog(transaction);
         if (!storedCatalog)
-          throw new DineInOrderDomainError("catalog_not_ready", "The saved catalog is not ready for TND ordering.");
+          throw new DineInOrderDomainError("catalog_not_ready", "The saved catalog is not ready for ordering.");
 
         let catalogPayload: unknown;
         try {
           catalogPayload = upgradeStoredCatalog(JSON.parse(storedCatalog.payload));
         } catch {
-          throw new DineInOrderDomainError("catalog_not_ready", "The saved catalog is not ready for TND ordering.");
+          throw new DineInOrderDomainError("catalog_not_ready", "The saved catalog is not ready for ordering.");
         }
         if (!catalogPayload || typeof catalogPayload !== "object" || Array.isArray(catalogPayload))
-          throw new DineInOrderDomainError("catalog_not_ready", "The saved catalog is not ready for TND ordering.");
+          throw new DineInOrderDomainError("catalog_not_ready", "The saved catalog is not ready for ordering.");
         const catalog = {
           ...catalogPayload,
           // The relational row is authoritative for the revision reviewed.
@@ -167,10 +167,10 @@ export function createDineInOrderService<Transaction>(
           );
 
         const readiness =
-          storedCatalog.tndReviewedRevision === storedCatalog.revision &&
-          Number.isSafeInteger(storedCatalog.tndReviewedAt) &&
-          (storedCatalog.tndReviewedAt ?? 0) > 0
-            ? createTrustedTndCatalogReadiness(storedCatalog.tndReviewedRevision)
+          storedCatalog.priceReviewedRevision === storedCatalog.revision &&
+          Number.isSafeInteger(storedCatalog.priceReviewedAt) &&
+          (storedCatalog.priceReviewedAt ?? 0) > 0
+            ? createTrustedCatalogReadiness(storedCatalog.priceReviewedRevision)
             : null;
         const prepared = prepareDineInOrder(
           requestValue,
@@ -206,7 +206,6 @@ export function createDineInOrderService<Transaction>(
           tableId: table.id,
           tableLabelSnapshot: table.label,
           status: prepared.snapshot.status,
-          currency: prepared.snapshot.currency,
           subtotalMillimes: prepared.snapshot.subtotalMillimes,
           totalMillimes: prepared.snapshot.totalMillimes,
           customerName: prepared.snapshot.customerName,
@@ -233,7 +232,6 @@ export function createDineInOrderService<Transaction>(
         }
         if (
           insertedHeader.id !== id ||
-          insertedHeader.currency !== "TND" ||
           insertedHeader.status !== "pending" ||
           insertedHeader.tableLabelSnapshot !== table.label ||
           insertedHeader.createdAt !== createdAt ||

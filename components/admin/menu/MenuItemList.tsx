@@ -122,7 +122,7 @@ export default function MenuItemList({
                               </div>
                             </div>
                             <span className="admin-dish-price">
-                              {formatPrice(item.price, uiLanguage, catalog.settings.currency)}
+                              {formatPrice(item.price, uiLanguage)} TND
                             </span>
                             <button
                               type="button"

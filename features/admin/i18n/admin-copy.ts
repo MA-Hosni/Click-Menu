@@ -75,7 +75,6 @@ const en = {
   dineInOrderCustomerLabel: "Customer",
   dineInOrderDateLabel: "Placed",
   dineInOrderStatusLabel: "Status",
-  dineInOrderCurrencyLabel: "Currency",
   dineInOrderNotesLabel: "Customer notes",
   dineInOrderNotProvided: "Not provided",
   dineInOrderItemsHeading: "Items in this order",

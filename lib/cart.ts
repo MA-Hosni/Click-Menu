@@ -1,6 +1,5 @@
 import type {
   CartItem,
-  Currency,
   Language,
   MenuItem,
   MenuOption,
@@ -20,9 +19,8 @@ export interface CartLine {
 export function formatPrice(
   amount: number,
   language: Language = "en",
-  currency: Currency = "TND",
 ): string {
-  return formatMinorUnits(amount, currency, language);
+  return formatMinorUnits(amount, language);
 }
 
 export function cartKey(itemId: string, optionIds: string[] = []): string {

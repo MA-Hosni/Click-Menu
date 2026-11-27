@@ -17,7 +17,6 @@ const catalog: Catalog = {
     description: "",
     address: "",
     hours: "",
-    currency: "TND",
     publicUrl: "",
   },
   categories: [{ id: "test-food", name: { en: "Test food", fr: "Test", ar: "اختبار" } }],

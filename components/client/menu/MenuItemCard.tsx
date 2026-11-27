@@ -1,7 +1,7 @@
 "use client";
 
 import { Leaf, Plus } from "lucide-react";
-import type { Currency, Language, MenuItem } from "../../../lib/types";
+import type { Language, MenuItem } from "../../../lib/types";
 import { formatPrice } from "../../../lib/cart";
 import { pickText } from "../../../lib/text";
 import { copy } from "../../../features/storefront/i18n/copy";
@@ -9,7 +9,6 @@ import Photo from "../shared/Photo";
 
 export default function MenuItemCard({
   item,
-  currency,
   language,
   headingLevel,
   index,
@@ -18,7 +17,6 @@ export default function MenuItemCard({
   orderingEnabled = true,
 }: {
   item: MenuItem;
-  currency: Currency;
   language: Language;
   headingLevel: "h2" | "h3";
   index: number;
@@ -54,7 +52,7 @@ export default function MenuItemCard({
         </div>
         <p>{pickText(item.description, language)}</p>
         <div className="menu-item-bottom">
-          <strong>{formatPrice(item.price, language, currency)}</strong>
+          <strong>{formatPrice(item.price, language)} TND</strong>
           {orderingEnabled && (
             <button
               className="add-button"

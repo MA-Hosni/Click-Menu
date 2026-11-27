@@ -22,7 +22,6 @@ export interface DineInOrderDetail {
   customerName: string | null;
   customerNotes: string | null;
   tableLabel: string;
-  currency: "TND";
   subtotalMillimes: number;
   totalMillimes: number;
   items: DineInOrderDetailItem[];
@@ -75,13 +74,13 @@ function nonemptyString(value: unknown): value is string {
 export function parseDineInOrderDetail(value: unknown): DineInOrderDetail {
   if (!isRecord(value) ||
     Object.keys(value).sort().join(",") !==
-      "createdAt,currency,customerName,customerNotes,items,orderId,status,subtotalMillimes,tableLabel,totalMillimes" ||
+      "createdAt,customerName,customerNotes,items,orderId,status,subtotalMillimes,tableLabel,totalMillimes" ||
     typeof value.orderId !== "string" || !UUID_PATTERN.test(value.orderId) ||
     typeof value.createdAt !== "string" || !parseDineInCreatedAt(value.createdAt) ||
     typeof value.status !== "string" || !(DINE_IN_ORDER_STATUSES as readonly string[]).includes(value.status) ||
     !(value.customerName === null || typeof value.customerName === "string") ||
     !(value.customerNotes === null || typeof value.customerNotes === "string") ||
-    !nonemptyString(value.tableLabel) || value.currency !== "TND" ||
+    !nonemptyString(value.tableLabel) ||
     !safeNonnegativeInteger(value.subtotalMillimes) ||
     !safeNonnegativeInteger(value.totalMillimes) || value.subtotalMillimes !== value.totalMillimes ||
     !Array.isArray(value.items) || value.items.length === 0
@@ -142,7 +141,6 @@ export function parseDineInOrderDetail(value: unknown): DineInOrderDetail {
     customerName: value.customerName,
     customerNotes: value.customerNotes,
     tableLabel: value.tableLabel,
-    currency: "TND",
     subtotalMillimes: value.subtotalMillimes,
     totalMillimes: value.totalMillimes,
     items,

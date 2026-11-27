@@ -46,7 +46,7 @@ The legacy WhatsApp checkout was removed. The normalized dine-in browser harness
 
 ## Data and security boundaries
 
-- GET /api/catalog reads The Hood's singleton catalog from PostgreSQL. Legacy `shop` query parameters are ignored; a missing catalog row yields a blank TND catalog rather than demo data.
+- GET /api/catalog reads The Hood's singleton catalog from PostgreSQL. Legacy `shop` query parameters are ignored; a missing catalog row yields a blank currency-free catalog rather than demo data.
 - POST /api/orders is retired and always returns 410 without reading or writing order data. GET /api/admin/orders exposes only an authenticated, read-only projection of retained historical records.
 - Admin handlers validate the singleton administrator from the hashed session cookie, not request payloads.
 - The singleton administrator password uses an Argon2id hash initialized/reset by an interactive server-side CLI. Hashed session tokens and credential versions are stored in PostgreSQL. Session cookies are HttpOnly and SameSite=Lax; HTTPS requests also receive Secure.
