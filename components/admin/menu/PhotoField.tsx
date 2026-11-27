@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { ImageUp, Link2 } from "lucide-react";
-import { MAX_IMAGE_BYTES } from "../../../lib/images";
+import { MAX_IMAGE_BYTES } from "../../../lib/image-constants";
 import { localizeError, useAdminCopy } from "../../../features/admin/i18n/admin-copy";
 
 /** Thrown when even the smallest JPEG is over the server's limit. */
@@ -32,15 +32,15 @@ export default function PhotoField({
   value,
   onChange,
 }: {
-  value: string;
-  onChange: (url: string) => void;
+  value: string | null;
+  onChange: (url: string | null) => void;
 }) {
   const { t } = useAdminCopy();
   const input = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [showLink, setShowLink] = useState(
-    () => !value.startsWith("/api/images/") && !value.startsWith("/images/"),
+    () => !value || (!value.startsWith("/api/images/") && !value.startsWith("/images/")),
   );
 
   async function upload(file: File) {
@@ -93,6 +93,15 @@ export default function PhotoField({
           <Link2 size={15} />
           {t.useLink}
         </button>
+        {value && (
+          <button
+            type="button"
+            className="admin-text-button"
+            onClick={() => onChange(null)}
+          >
+            {t.removePhoto}
+          </button>
+        )}
       </div>
       <input
         ref={input}
@@ -107,8 +116,8 @@ export default function PhotoField({
       {showLink && (
         <input
           aria-label={t.photoLink}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value || null)}
           placeholder="https://…"
         />
       )}

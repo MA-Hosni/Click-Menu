@@ -1,11 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Check, RefreshCw, Save } from "lucide-react";
 import { useAdmin } from "../../../features/admin/AdminProvider";
-import SignInPanel from "../auth/SignInPanel";
 
-type AdminSection = "menu" | "categories" | "orders" | "restaurant" | "qr";
+type AdminSection = "menu" | "categories" | "orders" | "restaurant" | "tables";
 
 export default function AdminPageContent({
   section,
@@ -27,12 +28,16 @@ export default function AdminPageContent({
     reload,
     saveCatalog,
   } = useAdmin();
+  const router = useRouter();
+  useEffect(() => {
+    if (!loading && !user) router.replace("/admin/login");
+  }, [loading, router, user]);
   const titles = {
     menu: [t.titleMenu, t.introMenu],
     categories: [t.titleSections, t.introSections],
     orders: [t.titleOrders, t.introOrders],
     restaurant: [t.titleRestaurant, t.introRestaurant],
-    qr: [t.titleQr, t.introQr],
+    tables: [t.titleTables, t.introTables],
   } as const;
   const [title, intro] = titles[section];
 
@@ -43,7 +48,7 @@ export default function AdminPageContent({
           <h1>{title}</h1>
           <p>{intro}</p>
         </div>
-        {user && section !== "orders" && (
+        {user && section !== "orders" && section !== "tables" && (
           <button
             type="button"
             className="admin-primary"
@@ -93,7 +98,7 @@ export default function AdminPageContent({
         </div>
       )}
       {dirty && <p className="admin-unsaved">{t.unsaved}</p>}
-      {loading ? (
+      {loading || !user ? (
         <>
           <div className="admin-loading" role="status">
             <p>{t.opening}</p>
@@ -112,9 +117,8 @@ export default function AdminPageContent({
         </>
       ) : (
         <>
-          {!user && <SignInPanel onSignedIn={() => void reload(t)} />}
-          {user && catalog.revision === 0 && section !== "orders" && (
-            <p className="admin-notice">{t.sampleStart}</p>
+          {user && catalog.revision === 0 && section !== "orders" && section !== "tables" && (
+            <p className="admin-notice">{t.catalogSetup}</p>
           )}
           {children}
         </>

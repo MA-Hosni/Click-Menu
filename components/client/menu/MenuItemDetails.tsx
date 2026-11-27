@@ -1,7 +1,7 @@
 "use client";
 
 import { Minus, Plus, X } from "lucide-react";
-import type { Language, MenuItem } from "../../../lib/types";
+import type { Currency, Language, MenuItem } from "../../../lib/types";
 import { formatPrice } from "../../../lib/cart";
 import { pickText } from "../../../lib/text";
 import { copy } from "../../../features/storefront/i18n/copy";
@@ -10,6 +10,7 @@ import Photo from "../shared/Photo";
 
 export default function MenuItemDetails({
   item,
+  currency,
   language,
   options,
   quantity,
@@ -17,8 +18,10 @@ export default function MenuItemDetails({
   onOptionsChange,
   onQuantityChange,
   onAdd,
+  orderingEnabled = true,
 }: {
   item: MenuItem | null;
+  currency: Currency;
   language: Language;
   options: string[];
   quantity: number;
@@ -26,6 +29,7 @@ export default function MenuItemDetails({
   onOptionsChange: (options: string[]) => void;
   onQuantityChange: (quantity: number) => void;
   onAdd: () => void;
+  orderingEnabled?: boolean;
 }) {
   const t = copy[language];
 
@@ -50,10 +54,10 @@ export default function MenuItemDetails({
           <div className="item-modal-body">
             <div className="modal-title-row">
               <h2>{pickText(item.name, language)}</h2>
-              <strong>{formatPrice(item.price, language)}</strong>
+              <strong>{formatPrice(item.price, language, currency)}</strong>
             </div>
             <p>{pickText(item.description, language)}</p>
-            {item.options.length > 0 && (
+            {orderingEnabled && item.options.length > 0 && (
               <fieldset className="extras">
                 <legend>{t.extras}</legend>
                 {item.options.map((option) => (
@@ -70,12 +74,12 @@ export default function MenuItemDetails({
                       }
                     />
                     <span>{pickText(option.label, language)}</span>
-                    <strong>+{formatPrice(option.price, language)}</strong>
+                    <strong>+{formatPrice(option.price, language, currency)}</strong>
                   </label>
                 ))}
               </fieldset>
             )}
-            <div className="item-add-row">
+            {orderingEnabled && <div className="item-add-row">
               <div className="quantity-control">
                 <button
                   aria-label="Decrease quantity"
@@ -103,10 +107,11 @@ export default function MenuItemDetails({
                         .reduce((sum, option) => sum + option.price, 0)) *
                       quantity,
                     language,
+                    currency,
                   )}
                 </span>
               </button>
-            </div>
+            </div>}
           </div>
         </>
       )}

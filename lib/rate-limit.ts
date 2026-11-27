@@ -16,22 +16,19 @@ export const LIMITS = {
     windowMs: 10 * MINUTE,
     message: "Too many orders from this connection. Please wait a few minutes.",
   },
-  /** Sign-in codes one email address can receive per day. */
-  codePerEmail: {
-    limit: 10,
-    windowMs: 24 * HOUR,
-    message: "Too many sign-in codes for this email today. Try again tomorrow.",
-  },
-  /** Sign-in codes one visitor can request, across all emails. */
-  codePerIp: {
-    limit: 30,
-    windowMs: HOUR,
-    message: "Too many sign-in requests from this connection. Try again later.",
-  },
-  /** Code guesses one visitor can make, across all emails. */
-  verifyPerIp: {
-    limit: 30,
+  orderTrackingPerIp: {
+    limit: 60,
     windowMs: 10 * MINUTE,
+    message: "Too many order status checks. Please wait a few minutes.",
+  },
+  adminLoginPerIp: {
+    limit: 10,
+    windowMs: 15 * MINUTE,
+    message: "Too many sign-in attempts. Please wait a few minutes.",
+  },
+  adminLoginPerAccount: {
+    limit: 30,
+    windowMs: 15 * MINUTE,
     message: "Too many sign-in attempts. Please wait a few minutes.",
   },
 } as const;

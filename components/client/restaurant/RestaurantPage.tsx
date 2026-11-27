@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
-import type { Language, MenuItem } from "../../../lib/types";
-import { formatPrice } from "../../../lib/cart";
-import { useCheckout } from "../../../features/storefront/useCheckout";
+import type { Catalog, Language, MenuItem } from "../../../lib/types";
 import { useStorefront } from "../../../features/storefront/useStorefront";
-import CartPanel from "../cart/CartPanel";
+import { useDineInCheckout } from "../../../features/storefront/useDineInCheckout";
+import DineInCheckout from "../ordering/DineInCheckout";
 import MenuSection from "../menu/MenuSection";
 import RestaurantFooter from "./RestaurantFooter";
 import RestaurantHeader from "./RestaurantHeader";
@@ -15,46 +14,49 @@ import RestaurantInfo from "./RestaurantInfo";
 
 export default function RestaurantPage({
   menuOnly = false,
+  tableLabel = "",
+  dineInTableToken,
+  initialCatalog,
 }: {
   menuOnly?: boolean;
+  tableLabel?: string;
+  dineInTableToken?: string;
+  initialCatalog?: Catalog;
 }) {
-  const storefront = useStorefront();
+  const dineInMode = Boolean(dineInTableToken);
+  const storefront = useStorefront(tableLabel, initialCatalog, dineInTableToken);
   const [cartOpen, setCartOpen] = useState(false);
-  const checkout = useCheckout({
-    catalog: storefront.catalog,
+  const restaurantName = storefront.catalog.settings.name || "The Hood";
+  const dineInCheckout = useDineInCheckout({
+    tableToken: dineInTableToken ?? "",
+    menuItems: storefront.catalog.items,
     cart: storefront.cart,
-    language: storefront.language,
-    shop: storefront.shop,
-    tableFromLink: storefront.tableFromLink,
-    clearCart: storefront.clearCart,
-    closeCart: () => setCartOpen(false),
+    setCart: storefront.replaceCart,
+    storefrontReady: !storefront.loading && !storefront.error,
   });
-  const restaurantName = storefront.catalog.settings.name || "TableTap";
-  const orderTable =
-    checkout.details.type === "dine-in" ? checkout.details.table : "";
+  const orderingAvailable = dineInMode && dineInCheckout.ready && !dineInCheckout.pending && !dineInCheckout.receipt;
+  const orderTable = tableLabel;
 
   function addToCart(item: MenuItem, options: string[], quantity: number) {
+    if (!dineInMode || dineInCheckout.pending || dineInCheckout.receipt) return;
     storefront.addItem(item, options, quantity);
-    checkout.resetForCartChange();
   }
 
   function changeQuantity(key: string, quantity: number) {
     storefront.changeQuantity(key, quantity);
-    checkout.resetForCartChange();
   }
 
   function changeLanguage(language: Language) {
     storefront.changeLanguage(language);
-    checkout.changeLanguage(language);
   }
 
   return (
     <>
       <RestaurantHeader
         restaurantName={restaurantName}
-        shop={storefront.shop}
         language={storefront.language}
-        itemCount={checkout.totals.itemCount}
+        itemCount={storefront.cart.reduce((sum, item) => sum + item.quantity, 0)}
+        showCart={dineInMode && (storefront.cart.length > 0 || dineInCheckout.receipt !== null)}
         onLanguageChange={changeLanguage}
         onOpenCart={() => setCartOpen(true)}
       />
@@ -73,6 +75,8 @@ export default function RestaurantPage({
           loading={storefront.loading}
           error={storefront.error}
           orderTable={orderTable}
+          orderingEnabled={orderingAvailable}
+          dineInMode={dineInMode}
           onRetry={storefront.retry}
           onAddToCart={addToCart}
         />
@@ -83,20 +87,12 @@ export default function RestaurantPage({
       </main>
       <RestaurantFooter
         restaurantName={restaurantName}
-        shop={storefront.shop}
         language={storefront.language}
       />
-      {checkout.totals.itemCount > 0 && !cartOpen && (
-        <button
-          className="floating-cart"
-          onClick={() => {
-            setCartOpen(true);
-            checkout.setMessage("");
-          }}
-        >
-          <span className="cart-count">{checkout.totals.itemCount}</span>
-          <span>{storefront.t.viewOrder}</span>
-          <strong>{formatPrice(checkout.totals.total, storefront.language)}</strong>
+      {dineInMode && (storefront.cart.length > 0 || dineInCheckout.receipt !== null) && !cartOpen && (
+        <button className="floating-cart" onClick={() => setCartOpen(true)}>
+          {storefront.cart.length > 0 && <span className="cart-count">{storefront.cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
+          <span>{dineInCheckout.receipt ? storefront.t.dineReceiptTitle : storefront.t.viewOrder}</span>
           <ArrowRight size={19} />
         </button>
       )}
@@ -112,14 +108,16 @@ export default function RestaurantPage({
           </>
         )}
       </div>
-      <CartPanel
+      {dineInMode && <DineInCheckout
         language={storefront.language}
-        checkout={checkout}
-        restaurantName={restaurantName}
+        catalog={storefront.catalog}
+        cart={storefront.cart}
+        checkout={dineInCheckout}
+        onRefreshCatalog={storefront.retry}
         open={cartOpen}
         onClose={() => setCartOpen(false)}
         onQuantityChange={changeQuantity}
-      />
+      />}
     </>
   );
 }

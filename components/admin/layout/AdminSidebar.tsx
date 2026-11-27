@@ -7,9 +7,9 @@ import {
   Coffee,
   LayoutList,
   ListOrdered,
-  QrCode,
   ReceiptText,
   Settings,
+  Table2,
 } from "lucide-react";
 import { useAdmin } from "../../../features/admin/AdminProvider";
 import AdminAccount from "../auth/AdminAccount";
@@ -19,7 +19,7 @@ const routes = [
   { href: "/admin/categories", key: "sections", icon: ListOrdered },
   { href: "/admin/orders", key: "orders", icon: ReceiptText },
   { href: "/admin/restaurant", key: "restaurant", icon: Settings },
-  { href: "/admin/qr", key: "qr", icon: QrCode },
+  { href: "/admin/tables", key: "tables", icon: Table2 },
 ] as const;
 
 function initials(name: string): string {
@@ -46,17 +46,13 @@ export default function AdminSidebar({
   open: boolean;
   onNavigate: () => void;
 }) {
-  const { user, catalog, saved, t } = useAdmin();
-  const shopId = user ? saved.settings.slug || user.id : undefined;
-  const publicLink = shopId
-    ? `/menu?shop=${encodeURIComponent(shopId)}`
-    : "/menu";
+  const { user, catalog, t } = useAdmin();
 
   return (
     <aside className={`admin-sidebar ${open ? "admin-sidebar-open" : ""}`}>
       <Link className="admin-logo" href="/">
         <Coffee size={25} strokeWidth={1.6} />
-        TableTap<span className="admin-logo-dot">.</span>
+        Click Menu<span className="admin-logo-dot">.</span>
       </Link>
       <div className="admin-workspace">
         <span className="admin-workspace-symbol" aria-hidden="true">
@@ -85,13 +81,15 @@ export default function AdminSidebar({
                   ? t.navOrders
                   : key === "restaurant"
                     ? t.navRestaurant
-                    : t.navQr}
+                    : key === "tables"
+                      ? t.navTables
+                      : t.navRestaurant}
             <ChevronRight size={15} />
           </Link>
         ))}
       </nav>
       <div className="admin-sidebar-bottom">
-        <a href={publicLink} target="_blank" rel="noopener noreferrer">
+        <a href="/menu" target="_blank" rel="noopener noreferrer">
           {t.viewCustomerMenu} <ArrowUpRight size={17} />
         </a>
         <AdminAccount />

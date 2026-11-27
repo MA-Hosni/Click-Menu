@@ -4,73 +4,85 @@ import { describe, it } from "node:test";
 import "../../support/register-types.mjs";
 
 const requireTs = createRequire(import.meta.url);
-const { createSeedCatalog } = requireTs("../../../lib/menu-data.ts");
-const { addToCart } = requireTs("../../../lib/cart.ts");
-const {
-  buildOrderRecord,
-  OrderValidationError,
-  parseStatusChange,
-} = requireTs("../../../lib/orders.ts");
+const { POST } = requireTs("../../../app/api/orders/route.ts");
+const { createAdminLegacyHistoryGetHandler } = requireTs("../../../lib/legacy-order-history.ts");
+const { withStatus } = requireTs("../../../lib/orders.ts");
 
-const catalog = createSeedCatalog();
-const item = catalog.items.find((candidate) => candidate.available);
-const details = {
-  name: "Test Customer",
-  type: "takeaway",
-  table: "",
-  address: "",
-  notes: "",
-};
-const id = "a".repeat(32);
+async function submitLegacyOrder(orderType) {
+  return POST(new Request("http://localhost/api/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: "a".repeat(32),
+      shop: "the-hood",
+      details: { name: "Test customer", type: orderType },
+      cart: [{ itemId: "burger", quantity: 1 }],
+    }),
+  }));
+}
 
-describe("order validation", () => {
-  it("creates orders using current catalog prices, not browser prices", () => {
-    const cart = addToCart([], item, [], 2).map((entry) => ({
-      ...entry,
-      price: 1,
-      total: 2,
+describe("retired legacy order endpoint", () => {
+  it("rejects delivery submissions without creating an order", async () => {
+    const response = await submitLegacyOrder("delivery");
+    assert.equal(response.status, 410);
+    assert.match((await response.json()).error, /no longer supported/i);
+  });
+
+  it("rejects takeaway submissions without creating an order", async () => {
+    const response = await submitLegacyOrder("takeaway");
+    assert.equal(response.status, 410);
+    assert.match((await response.json()).error, /no longer supported/i);
+  });
+
+  it("does not trigger WhatsApp even when the request includes a WhatsApp URL", async () => {
+    const response = await POST(new Request("http://localhost/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "b".repeat(32),
+        whatsapp: "https://wa.me/21612345678",
+        details: { type: "dine-in", table: "1" },
+      }),
     }));
-    const order = buildOrderRecord({ id, cart, details, language: "fr" }, catalog, 123);
-
-    assert.equal(order.createdAt, 123);
-    assert.equal(order.status, "new");
-    assert.equal(order.itemCount, 2);
-    assert.equal(order.subtotal, item.price * 2);
-    assert.equal(order.total, item.price * 2);
-    assert.equal(order.language, "fr");
+    assert.equal(response.status, 410);
+    assert.equal(response.headers.get("Location"), null);
   });
 
-  it("rejects unavailable and nonexistent items", () => {
-    for (const itemId of ["missing", catalog.items.find((candidate) => !candidate.available)?.id]) {
-      if (!itemId) continue;
-      assert.throws(
-        () => buildOrderRecord({ id, cart: [{ itemId, quantity: 1, optionIds: [] }], details }, catalog),
-        /no available dishes/i,
-      );
-    }
+  it("continues to decode historical legacy order records", () => {
+    const archived = {
+      id: "c".repeat(32), createdAt: 456, status: "new", language: "fr",
+      name: "Historique", type: "delivery", address: "historic address",
+      lines: [{ name: "Old item", options: [], quantity: 1, total: 12000 }],
+      subtotal: 10000, deliveryFee: 2000, total: 12000, itemCount: 1,
+    };
+    const decoded = withStatus(archived);
+    assert.equal(decoded.id, archived.id);
+    assert.equal(decoded.total, 12000);
+    assert.equal(decoded.address, "historic address");
+    assert.equal(decoded.deliveryFee, 2000);
   });
 
-  it("rejects malformed order details and IDs", () => {
-    assert.throws(
-      () => buildOrderRecord({ id, cart: addToCart([], item), details: { ...details, name: "" } }, catalog),
-      OrderValidationError,
-    );
-    assert.throws(
-      () => buildOrderRecord({ id, cart: addToCart([], item), details: { ...details, type: "dine-in", table: "!" } }, catalog),
-      OrderValidationError,
-    );
-    assert.throws(
-      () => buildOrderRecord({ id: "bad", cart: addToCart([], item), details }, catalog),
-      /invalid reference/i,
-    );
-  });
-
-  it("accepts known status changes and rejects invalid IDs or statuses", () => {
-    assert.deepEqual(parseStatusChange({ id, status: "preparing" }), {
-      id,
-      status: "preparing",
+  it("keeps historical records readable through the authenticated admin history API only", async () => {
+    const historical = {
+      id: "d".repeat(32), createdAt: 789, status: "new", language: "en",
+      name: "Archived customer", type: "delivery", address: "archived address",
+      notes: "Old note", lines: [{ name: "Old item", options: [], quantity: 1, total: 15000 }],
+      subtotal: 10000, deliveryFee: 5000, total: 15000, itemCount: 1,
+    };
+    const GET = createAdminLegacyHistoryGetHandler({
+      getCurrentUser: async () => ({ name: "Administrator" }),
+      listOrders: async () => [withStatus(historical)],
     });
-    assert.throws(() => parseStatusChange({ id: "bad", status: "done" }), OrderValidationError);
-    assert.throws(() => parseStatusChange({ id, status: "shipped" }), OrderValidationError);
+    const response = await GET();
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.orders[0].id, historical.id);
+    assert.equal(body.orders[0].lines[0].name, "Old item");
+    assert.equal(body.orders[0].lines[0].quantity, 1);
+    assert.equal("total" in body.orders[0], false);
+    assert.equal("total" in body.orders[0].lines[0], false);
+    assert.equal("type" in body.orders[0], false);
+    assert.equal("address" in body.orders[0], false);
+    assert.equal("deliveryFee" in body.orders[0], false);
   });
 });

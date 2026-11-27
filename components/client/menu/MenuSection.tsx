@@ -17,6 +17,8 @@ export default function MenuSection({
   loading,
   error,
   orderTable,
+  orderingEnabled = true,
+  dineInMode = false,
   onRetry,
   onAddToCart,
 }: {
@@ -26,6 +28,8 @@ export default function MenuSection({
   loading: boolean;
   error: string;
   orderTable: string;
+  orderingEnabled?: boolean;
+  dineInMode?: boolean;
   onRetry: () => void;
   onAddToCart: (item: MenuItem, options: string[], quantity: number) => void;
 }) {
@@ -90,6 +94,7 @@ export default function MenuSection({
   }
 
   function quickAdd(item: MenuItem) {
+    if (!orderingEnabled) return;
     if (item.options.length) return selectItem(item);
     onAddToCart(item, [], 1);
   }
@@ -109,9 +114,9 @@ export default function MenuSection({
           )}
           <p>
             {menuOnly
-              ? t.menuHowTo.replace(
+            ? (dineInMode ? t.dineMenuHowTo : t.menuHowTo).replace(
                   "{restaurant}",
-                  catalog.settings.name || "TableTap",
+                  catalog.settings.name || "The Hood",
                 )
               : t.menuIntro}
           </p>
@@ -172,9 +177,6 @@ export default function MenuSection({
           <button className="button primary" onClick={onRetry}>
             {t.retry}
           </button>
-          <a className="text-link" href="/menu">
-            {t.openDemo}
-          </a>
         </div>
       ) : filtered.length === 0 ? (
         <div className="menu-state">
@@ -197,11 +199,13 @@ export default function MenuSection({
             <MenuItemCard
               key={item.id}
               item={item}
+              currency={catalog.settings.currency}
               language={language}
               headingLevel={menuOnly ? "h2" : "h3"}
               index={index}
               onSelect={selectItem}
               onQuickAdd={quickAdd}
+              orderingEnabled={orderingEnabled}
             />
           ))}
         </div>
@@ -215,6 +219,7 @@ export default function MenuSection({
       </p>
       <MenuItemDetails
         item={selected}
+        currency={catalog.settings.currency}
         language={language}
         options={options}
         quantity={quantity}
@@ -224,6 +229,7 @@ export default function MenuSection({
         onAdd={() => {
           if (selected) addItem(selected, options, quantity);
         }}
+        orderingEnabled={orderingEnabled}
       />
     </section>
   );

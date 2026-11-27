@@ -3,11 +3,12 @@
 The Next.js App Router lives at the repository root; there is no src/ directory.
 
     app/
-      admin/{categories,menu,orders,qr,restaurant}/page.tsx
+      admin/{categories,menu,orders,qr,restaurant,tables}/page.tsx
       admin/layout.tsx
       admin/page.tsx
       api/{admin,auth,catalog,health,images,me,orders}/
       menu/page.tsx
+      t/[token]/page.tsx
       page.tsx
       layout.tsx
       globals.css
@@ -29,7 +30,7 @@ The Next.js App Router lives at the repository root; there is no src/ directory.
 
 ### app/
 
-Owns App Router conventions: route page.tsx files, layouts, metadata, and HTTP route handlers. Customer routes are / and /menu. Admin routes are /admin/menu, /admin/categories, /admin/orders, /admin/restaurant, and /admin/qr. /admin redirects to /admin/menu.
+Owns App Router conventions: route page.tsx files, layouts, metadata, and HTTP route handlers. Customer routes are /, /menu, and /t/[token] (table QR menu). Admin routes are /admin/menu, /admin/categories, /admin/orders, /admin/restaurant, and /admin/tables. The legacy /admin/qr URL redirects to /admin/tables; /admin redirects to /admin/menu.
 
 ### app/api/
 
@@ -37,7 +38,7 @@ Owns HTTP method handling, request parsing, same-origin checks, authentication b
 
 ### components/admin/
 
-Admin-only presentation grouped by auth, categories, layout, menu, orders, QR, and restaurant. Shared catalog state and admin localization come from features/admin.
+Admin-only presentation grouped by auth, categories, layout, menu, orders, restaurant, and tables. `components/admin/qr/QrPage.tsx` is only a redirect shim for the retired `/admin/qr` URL. Shared catalog state and admin localization come from features/admin.
 
 ### components/client/
 
@@ -59,9 +60,11 @@ Owns storefront catalog/cart and checkout hooks plus customer translations under
 
 Shared types, validation, cart/order domain logic, server-side stores, and utilities. Keep React UI out of lib. Database-dependent modules must remain server-only.
 
+`lib/table-operations.ts` owns QR-token validation, hashing, label normalization, and table operations. `lib/table-store.ts` is the server-only Drizzle adapter for table persistence. Admin table presentation belongs in `components/admin/tables/`; its HTTP handlers are under `app/api/admin/tables/`.
+
 ### db/
 
-Drizzle schema and database client. db/schema.ts defines the PostgreSQL tables; db/index.ts initializes the Neon pooled client with DATABASE_URL_POOLED.
+Drizzle schema and database clients. db/schema.ts defines the PostgreSQL tables; db/index.ts selects Neon by default or an explicitly configured local node-postgres client.
 
 ### drizzle/
 

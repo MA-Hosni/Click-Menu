@@ -2,17 +2,9 @@ import { headers } from "next/headers";
 import { getSessionUser } from "../lib/auth";
 import { postgresAuthStore } from "../lib/auth-store";
 
-export type OwnerUser = {
-  userId: string;
-  email: string;
-};
-
-/** The owner signed in with an emailed code, from the session cookie. */
-export async function getCurrentUser(): Promise<OwnerUser | null> {
-  const requestHeaders = await headers();
-  const user = await getSessionUser(
-    postgresAuthStore(),
-    requestHeaders.get("cookie"),
-  );
-  return user ? { userId: user.id, email: user.email } : null;
+/** Singleton administrator identity from a server-validated session. */
+export async function getCurrentUser(cookieHeader?: string | null) {
+  const sessionCookie =
+    cookieHeader === undefined ? (await headers()).get("cookie") : cookieHeader;
+  return getSessionUser(postgresAuthStore(), sessionCookie);
 }

@@ -6,7 +6,9 @@ import type { Category, Language, MenuItem, MenuOption } from "../../../lib/type
 import { formatPrice } from "../../../lib/cart";
 import { pickText } from "../../../lib/text";
 import { useAdmin } from "../../../features/admin/AdminProvider";
+import { formatMajorUnitsInput, minorUnitsPerMajorUnit, parseMajorUnits } from "../../../lib/money";
 import PhotoField from "./PhotoField";
+import DishPhoto from "../../ui/DishPhoto";
 
 const languages: { id: Language; label: string }[] = [
   { id: "en", label: "English" },
@@ -36,6 +38,12 @@ export default function MenuItemEditor({
   }
   function editOption(index: number, patch: Partial<MenuOption>) {
     editItem({ options: item.options.map((option, i) => i === index ? { ...option, ...patch } : option) });
+  }
+  function editPrice(value: string, target: "item" | number) {
+    const price = parseMajorUnits(value, catalog.settings.currency);
+    if (price === null) return;
+    if (target === "item") editItem({ price });
+    else editOption(target, { price });
   }
   function deleteItem() {
     if (!window.confirm(t.confirmDelete(label(item.name, uiLanguage)))) return;
@@ -113,21 +121,15 @@ export default function MenuItemEditor({
                         </label>
                         <div className="admin-field-pair">
                           <label className="admin-field">
-                            {t.priceDh}
+                            {t.priceTnd}
                             <input
                               type="number"
                               inputMode="decimal"
                               min="0"
-                              max="10000"
-                              step="0.01"
-                              value={item.price / 100}
-                              onChange={(e) =>
-                                editItem({
-                                  price: Math.round(
-                                    Number(e.target.value) * 100,
-                                  ),
-                                })
-                              }
+                              max={1_000_000 / minorUnitsPerMajorUnit(catalog.settings.currency)}
+                              step="0.001"
+                              value={formatMajorUnitsInput(item.price, catalog.settings.currency)}
+                              onChange={(e) => editPrice(e.target.value, "item")}
                             />
                           </label>
                           <label className="admin-field">
@@ -228,21 +230,15 @@ export default function MenuItemEditor({
                                   />
                                 </label>
                                 <label className="admin-field">
-                                  {t.extraDh}
+                                  {t.extraTnd}
                                   <input
                                     type="number"
                                     inputMode="decimal"
                                     min="0"
-                                    max="10000"
-                                    step="0.01"
-                                    value={option.price / 100}
-                                    onChange={(e) =>
-                                      editOption(index, {
-                                        price: Math.round(
-                                          Number(e.target.value) * 100,
-                                        ),
-                                      })
-                                    }
+                                    max={1_000_000 / minorUnitsPerMajorUnit(catalog.settings.currency)}
+                                    step="0.001"
+                                    value={formatMajorUnitsInput(option.price, catalog.settings.currency)}
+                                    onChange={(e) => editPrice(e.target.value, index)}
                                   />
                                 </label>
                                 <button
@@ -287,12 +283,10 @@ export default function MenuItemEditor({
                         </div>
                       </div>
                       <aside className="admin-item-preview">
-                        <img
+                        <DishPhoto
                           src={item.image}
                           alt={label(item.name, language)}
-                          onError={(e) => {
-                            e.currentTarget.src = "/images/toast.jpg";
-                          }}
+                          className="admin-item-preview-image"
                         />
                         <div dir={language === "ar" ? "rtl" : "ltr"}>
                           <span className="admin-preview-label">
@@ -307,7 +301,7 @@ export default function MenuItemEditor({
                               t.previewDescription}
                           </p>
                           <strong>
-                            {formatPrice(item.price, language)}
+                            {formatPrice(item.price, language, catalog.settings.currency)}
                           </strong>
                           <span className="admin-preview-status">
                             {item.available

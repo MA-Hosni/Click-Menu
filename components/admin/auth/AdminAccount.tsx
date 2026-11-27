@@ -22,7 +22,7 @@ export default function AdminAccount() {
         <span>{user?.name?.slice(0, 1).toUpperCase() || "D"}</span>
         <div>
           <strong>{user?.name || t.demoWorkspace}</strong>
-          <small>{user ? t.signedInByEmail : t.exploreBeforeSignIn}</small>
+          <small>{user ? t.signedInAsOwner : t.exploreBeforeSignIn}</small>
         </div>
       </div>
       {user && (

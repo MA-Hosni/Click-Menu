@@ -1,6 +1,7 @@
 import {
   assertSameOrigin,
   jsonResponse,
+  requestIsSecure,
   routeError,
 } from "../../../../lib/api-security";
 import { clearedSessionCookie, endSession } from "../../../../lib/auth";
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     await endSession(postgresAuthStore(), request.headers.get("cookie"));
-    const secure = new URL(request.url).protocol === "https:";
+    const secure = requestIsSecure(request);
     return jsonResponse({ signedOut: true }, 200, {
       "Set-Cookie": clearedSessionCookie(secure),
     });

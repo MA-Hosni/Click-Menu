@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import "../../support/register-types.mjs";
 
 const requireTs = createRequire(import.meta.url);
-const { createSeedCatalog } = requireTs("../../../lib/menu-data.ts");
+import { createTestCatalog } from "../../support/catalog-fixture.mjs";
 const {
   addToCart,
   calculateCart,
@@ -12,7 +12,7 @@ const {
   updateCartQuantity,
 } = requireTs("../../../lib/cart.ts");
 
-const catalog = createSeedCatalog();
+const catalog = createTestCatalog();
 const item = catalog.items.find((candidate) => candidate.available);
 const option = item.options[0];
 
@@ -52,18 +52,13 @@ describe("storefront cart", () => {
     assert.deepEqual(restored[0].optionIds, [option.id]);
   });
 
-  it("includes option pricing, delivery fees, and correct totals", () => {
+  it("includes option pricing and correct dine-in cart totals", () => {
     const cart = addToCart([], item, [option.id], 2);
-    const totals = calculateCart(cart, catalog.items, catalog.settings.deliveryFee);
+    const totals = calculateCart(cart, catalog.items);
     const expectedSubtotal = (item.price + option.price) * 2;
 
     assert.equal(totals.itemCount, 2);
     assert.equal(totals.subtotal, expectedSubtotal);
-    assert.equal(totals.deliveryFee, catalog.settings.deliveryFee);
-    assert.equal(totals.total, expectedSubtotal + catalog.settings.deliveryFee);
-    assert.equal(
-      calculateCart([], catalog.items, catalog.settings.deliveryFee).deliveryFee,
-      0,
-    );
+    assert.equal(totals.total, expectedSubtotal);
   });
 });

@@ -7,7 +7,7 @@ import { useAdmin } from "../../../features/admin/AdminProvider";
 import AdminHeader from "./AdminHeader";
 import AdminPageContent from "./AdminPageContent";
 import AdminSidebar from "./AdminSidebar";
-const sections = ["menu", "categories", "orders", "restaurant", "qr"] as const;
+const sections = ["menu", "categories", "orders", "restaurant", "tables"] as const;
 type AdminSection = (typeof sections)[number];
 
 export default function AdminShell({ children }: { children: ReactNode }) {
@@ -35,7 +35,11 @@ export default function AdminShell({ children }: { children: ReactNode }) {
           navigationOpen={navigationOpen}
           onNavigationToggle={() => setNavigationOpen((open) => !open)}
         />
-        <AdminPageContent section={section}>{children}</AdminPageContent>
+        {routeSection === "login" ? (
+          children
+        ) : (
+          <AdminPageContent section={section}>{children}</AdminPageContent>
+        )}
       </div>
     </div>
   );

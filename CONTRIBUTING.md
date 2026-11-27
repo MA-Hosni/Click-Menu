@@ -15,7 +15,7 @@ npm ci
 cp .env.example .env.local
 ```
 
-Set `DATABASE_URL` to the direct development connection used by Drizzle Kit and `DATABASE_URL_POOLED` to the pooled connection used by the application. Set `SITE_URL` only when you need a different metadata origin. `RESEND_API_KEY` and `EMAIL_FROM` are needed for production email delivery; local sign-in can display the code when both are unset.
+Set `DATABASE_URL` to the direct development connection used by Drizzle Kit and `DATABASE_URL_POOLED` to the pooled connection used by the application. Set `SITE_URL` only when you need a different metadata origin. Configure a random 32-byte base64 `TABLE_QR_RECOVERY_KEY` for QR rotation and keep it stable. Use an isolated development database and never point setup or migration commands at production. After migrations, initialize the singleton administrator password using `npm run admin:password`; intentional resets require `npm run admin:password -- --reset`.
 
 Run the committed migrations against an empty development database before using database-backed features:
 

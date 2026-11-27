@@ -7,14 +7,13 @@ export class ApiError extends Error {
 }
 
 export interface RequestIdentity {
-  userId: string;
+  name: string;
 }
 
-/** Only the server-authenticated identity selects the writable database row. */
-export function requireOwnerId(user: RequestIdentity | null): string {
-  if (!user?.userId)
+/** Requires the server-validated singleton administrator session. */
+export function requireAdmin(user: RequestIdentity | null): void {
+  if (!user)
     throw new ApiError("Sign in to manage your restaurant menu.", 401);
-  return user.userId;
 }
 
 export function assertSameOrigin(request: Request): void {
@@ -22,6 +21,20 @@ export function assertSameOrigin(request: Request): void {
   const destination = new URL(request.url).origin;
   if (!origin || origin !== destination)
     throw new ApiError("This request must come from the same website.", 403);
+}
+
+export function requestIsSecure(request: Request): boolean {
+  if (new URL(request.url).protocol === "https:") return true;
+  return request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    .trim()
+    .toLowerCase() === "https";
+}
+
+export function requireSecureTransport(request: Request): void {
+  if (process.env.NODE_ENV === "production" && !requestIsSecure(request))
+    throw new ApiError("HTTPS is required for this endpoint.", 403);
 }
 
 /** Reads at most `maximumBytes` of the body, whatever Content-Length claims. */
@@ -92,11 +105,8 @@ export function jsonResponse(
 export function routeError(error: unknown): Response {
   if (error instanceof ApiError)
     return jsonResponse({ error: error.message }, error.status);
-  // Infrastructure details must stay server-side.
-  console.error(
-    "TableTap API failed:",
-    error instanceof Error ? error.message : "Unknown error",
-  );
+  // Driver errors can contain SQL, parameters, or connection details.
+  console.error("Click Menu API failed.");
   return jsonResponse(
     { error: "Something went wrong on our side. Please try again shortly." },
     503,
