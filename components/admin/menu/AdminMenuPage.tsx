@@ -5,12 +5,13 @@ import type { Category, MenuItem } from "../../../lib/types";
 import { useAdmin } from "../../../features/admin/AdminProvider";
 import MenuItemEditor from "./MenuItemEditor";
 import MenuItemList from "./MenuItemList";
+import TndPriceReview from "./TndPriceReview";
 
 const newId = () => crypto.randomUUID().replaceAll("-", "");
 
 export default function AdminMenuPage() {
   const { user } = useAdmin();
-  return <MenuWorkspace key={user?.id ?? "guest"} />;
+  return <MenuWorkspace key={user ? "admin" : "guest"} />;
 }
 
 function MenuWorkspace() {
@@ -29,13 +30,14 @@ function MenuWorkspace() {
   );
 
   function addItem() {
+    if (catalog.categories.length === 0 || catalog.items.length >= 100) return;
     const item: MenuItem = {
       id: newId(),
       category: filter === "all" ? catalog.categories[0].id : filter,
       name: { en: "", fr: "", ar: "", [uiLanguage]: t.newDish },
       description: { en: "", fr: "", ar: "" },
       price: 0,
-      image: "/images/toast.jpg",
+      image: null,
       tags: [],
       available: true,
       options: [],
@@ -56,19 +58,22 @@ function MenuWorkspace() {
   }
 
   return (
-    <MenuItemList
-      categories={catalog.categories}
-      items={items}
-      filter={filter}
-      search={search}
-      onFilterChange={setFilter}
-      onSearchChange={setSearch}
-      onShowAll={() => {
-        setSearch("");
-        setFilter("all");
-      }}
-      onAddItem={addItem}
-      onSelectItem={setSelectedId}
-    />
+    <>
+      <TndPriceReview />
+      <MenuItemList
+        categories={catalog.categories}
+        items={items}
+        filter={filter}
+        search={search}
+        onFilterChange={setFilter}
+        onSearchChange={setSearch}
+        onShowAll={() => {
+          setSearch("");
+          setFilter("all");
+        }}
+        onAddItem={addItem}
+        onSelectItem={setSelectedId}
+      />
+    </>
   );
 }

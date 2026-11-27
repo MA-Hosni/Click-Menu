@@ -1,4 +1,3 @@
-import { defaultCategories } from "./menu-data";
 import type {
   Catalog,
   LocalizedText,
@@ -12,22 +11,6 @@ export class CatalogValidationError extends Error {}
 
 /** Server-hosted photos uploaded from the owner dashboard. */
 export const UPLOADED_IMAGE_PATTERN = /^\/api\/images\/[a-f0-9]{32}$/;
-/** Readable menu link names: 3–60 lowercase letters, numbers and inner hyphens. */
-export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,58})[a-z0-9]$/;
-
-/** Suggests a link name from a restaurant name, e.g. "Olive & Ember" → "olive-and-ember". */
-export function slugify(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60)
-    .replace(/-+$/g, "");
-}
-
 function object(value: unknown, field: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new CatalogValidationError(`${field} must be an object.`);
@@ -98,7 +81,8 @@ function id(value: unknown, field: string): string {
   return result;
 }
 
-function imageUrl(value: unknown): string {
+function imageUrl(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
   const result = string(value, "image", 1200);
   if (/^\/images\/[a-zA-Z0-9_.\/-]+$/.test(result) && !result.includes(".."))
     return result;
@@ -117,14 +101,6 @@ function imageUrl(value: unknown): string {
 
 function settings(value: unknown): RestaurantSettings {
   const row = object(value, "settings");
-  const whatsapp = string(row.whatsapp, "WhatsApp number", 30, true).replace(
-    /[\s()+-]/g,
-    "",
-  );
-  if (whatsapp && !/^[1-9]\d{7,14}$/.test(whatsapp))
-    throw new CatalogValidationError(
-      "Enter a WhatsApp number with country code, or leave it blank.",
-    );
   const publicUrl = string(row.publicUrl, "Public URL", 1200, true);
   if (publicUrl) {
     try {
@@ -144,24 +120,16 @@ function settings(value: unknown): RestaurantSettings {
       );
     }
   }
-  const slug = string(row.slug, "Menu link name", 60, true).toLowerCase();
-  if (slug && !SLUG_PATTERN.test(slug))
-    throw new CatalogValidationError(
-      "Menu link names use 3–60 lowercase letters, numbers and hyphens, like olive-and-ember.",
-    );
-  if (row.currency !== "MAD")
-    throw new CatalogValidationError("This menu uses MAD prices.");
+  if (row.currency !== "TND")
+    throw new CatalogValidationError("Choose a supported catalog currency.");
   return {
     name: string(row.name, "Restaurant name", 100),
-    tagline: string(row.tagline, "Tagline", 150),
-    description: string(row.description, "Description", 1000),
-    address: string(row.address, "Address", 300),
-    hours: string(row.hours, "Opening hours", 300),
-    whatsapp,
-    currency: "MAD",
-    deliveryFee: integer(row.deliveryFee, "Delivery fee", 100_000),
+    tagline: string(row.tagline, "Tagline", 150, true),
+    description: string(row.description, "Description", 1000, true),
+    address: string(row.address, "Address", 300, true),
+    hours: string(row.hours, "Opening hours", 300, true),
+    currency: "TND",
     publicUrl,
-    slug,
   };
 }
 
@@ -210,7 +178,7 @@ function item(value: unknown, categoryIds: Set<string>): MenuItem {
   };
 }
 
-/** Reconstructs a bounded, known shape; owner IDs are never accepted from a payload. */
+/** Reconstructs a bounded, known shape; database partition keys are never accepted from a payload. */
 export function validateCatalog(value: unknown): Catalog {
   const row = object(value, "Catalog");
   if (
@@ -221,19 +189,17 @@ export function validateCatalog(value: unknown): Catalog {
     throw new CatalogValidationError("Unexpected catalog fields.");
   if (
     !Array.isArray(row.items) ||
-    row.items.length < 1 ||
     row.items.length > 100
   )
     throw new CatalogValidationError(
-      "A menu must contain between 1 and 100 items.",
+      "A menu can contain up to 100 items.",
     );
   if (
     !Array.isArray(row.categories) ||
-    row.categories.length < 1 ||
     row.categories.length > 20
   )
     throw new CatalogValidationError(
-      "A menu must contain between 1 and 20 categories.",
+      "A menu can contain up to 20 categories.",
     );
   const categories = row.categories.map(category);
   const categoryIds = new Set(categories.map((entry) => entry.id));
@@ -263,6 +229,16 @@ export function validateCatalog(value: unknown): Catalog {
   };
 }
 
+/** Validates the complete catalog before it can be used for TND order pricing. */
+export function validateTndCatalog(value: unknown): Catalog {
+  const catalog = validateCatalog(value);
+  if (catalog.settings.currency !== "TND")
+    throw new CatalogValidationError(
+      "The catalog currency must be TND.",
+    );
+  return catalog;
+}
+
 /**
  * Fills fields added after a menu was first saved, so older stored menus keep
  * loading. Runs before validation; it never removes owner content.
@@ -270,15 +246,8 @@ export function validateCatalog(value: unknown): Catalog {
 export function upgradeStoredCatalog(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const row = value as Record<string, unknown>;
-  const settings =
-    row.settings && typeof row.settings === "object"
-      ? { slug: "", ...(row.settings as Record<string, unknown>) }
-      : row.settings;
   return {
     ...row,
-    settings,
-    categories: Array.isArray(row.categories)
-      ? row.categories
-      : structuredClone(defaultCategories),
+    categories: Array.isArray(row.categories) ? row.categories : [],
   };
 }

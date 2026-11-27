@@ -8,9 +8,9 @@ ClickMenu uses Next.js 16 App Router. The root app/ directory owns routes, layou
       -> app/page.tsx or app/menu/page.tsx
       -> components/client/
       -> features/storefront/
-      -> /api/catalog and /api/orders
+      -> /api/catalog (legacy order POST returns 410)
       -> lib validation and stores
-      -> db/ Neon PostgreSQL
+      -> db/ PostgreSQL (Neon by default; explicit local `pg` mode)
 
     Owner browser
       -> app/admin/layout.tsx
@@ -18,7 +18,7 @@ ClickMenu uses Next.js 16 App Router. The root app/ directory owns routes, layou
       -> components/admin/
       -> /api/me and /api/admin/*
       -> lib authentication, catalog, order, image stores
-      -> db/ Neon PostgreSQL
+      -> db/ PostgreSQL (Neon by default; explicit local `pg` mode)
 
 ## Dependency direction
 
@@ -40,16 +40,19 @@ QR reads saved catalog settings. Orders own separate loading, polling, filtering
 
 ### Customer storefront
 
-features/storefront/useStorefront owns the loaded catalog, language, and cart. Cart data is keyed by restaurant in localStorage and sanitized against the current published menu. Cart totals are derived by lib/cart.ts. useCheckout owns checkout state, validation, WhatsApp message preview, and order submission. There is no global storefront provider; RestaurantPage composes the hooks.
+features/storefront/useStorefront owns the loaded catalog, language, and cart. Legacy cart data is restaurant-scoped; registered-table cart data uses a SHA-256-derived table scope in localStorage. Dine-in pending attempts use a separate record with the exact retry request, coordinated across tabs with Web Locks. Acknowledgment stores only the completed order reference in the retry record and separately saves the tracking capability under an order-scoped localStorage key. The tracking page accepts the URL fragment first, then a matching order-scoped local copy; local storage is recovery convenience, not authorization. Tracking links contain the capability in the fragment and customers can copy/share the link. The token is not rendered into server HTML. A customer may remove the saved local entry explicitly; terminal status does not remove it. Browser data can be cleared or unavailable, and cross-device recovery requires the private tracking link. Pending retry state uses conditional cleanup, tombstones, and IndexedDB fallback to prevent uncertain writes from being mistaken for an empty state. Server-side idempotency is the final duplicate safeguard. If required storage or Web Locks cannot be used, dine-in submission fails closed. There is no global storefront provider; RestaurantPage composes the hooks.
+
+The legacy WhatsApp checkout was removed. The normalized dine-in browser harness remains gated to a development loopback test route and uses a mocked transport; it does not exercise persistence. Intake remains disabled by default.
 
 ## Data and security boundaries
 
-- GET /api/catalog returns a demo seed catalog when shop is omitted. With shop, it reads the published catalog from PostgreSQL.
-- POST /api/orders accepts item, option, and quantity identifiers; lib/orders.ts validates availability and recomputes amounts against the stored catalog. Client prices and totals are not trusted.
-- Admin handlers identify the owner from the session cookie, not request payloads.
-- Passwordless email codes and hashed session tokens use PostgreSQL stores. Session cookies are HttpOnly and SameSite=Lax; HTTPS requests also receive Secure.
+- GET /api/catalog reads The Hood's singleton catalog from PostgreSQL. Legacy `shop` query parameters are ignored; a missing catalog row yields a blank TND catalog rather than demo data.
+- POST /api/orders is retired and always returns 410 without reading or writing order data. GET /api/admin/orders exposes only an authenticated, read-only projection of retained historical records.
+- Admin handlers validate the singleton administrator from the hashed session cookie, not request payloads.
+- The singleton administrator password uses an Argon2id hash initialized/reset by an interactive server-side CLI. Hashed session tokens and credential versions are stored in PostgreSQL. Session cookies are HttpOnly and SameSite=Lax; HTTPS requests also receive Secure.
+- `owner_id` remains temporarily only as a server-side legacy partition key in the order store. It is not identity or authorization and is scheduled for removal with the later order persistence phase.
 - Mutation requests use same-origin validation.
-- Menu photos are stored in PostgreSQL and served through a read-only image route.
+- Menu photo bytes live in private S3-compatible object storage; PostgreSQL stores image IDs and metadata. The server image route retrieves object bytes without exposing storage credentials.
 - The /menu metadata lookup is request-time because it uses searchParams and a database lookup. Failure does not prevent the menu route itself from rendering.
 
 ## Decisions

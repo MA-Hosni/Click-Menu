@@ -3,6 +3,7 @@ import { lt, sql } from "drizzle-orm";
 
 import { getDb } from "../db";
 import { rateLimits } from "../db/schema";
+import { clientIp } from "./client-ip";
 
 import {
   RATE_LIMIT_MAX_WINDOW_MS,
@@ -58,21 +59,4 @@ export function postgresRateLimitStore(): RateLimitStore {
     },
   };
 }
-
-/**
- * Extract a client IP from proxy-provided headers.
- *
- * Before production deployment, configure this against
- * the trusted proxy headers of your hosting provider.
- */
-export function clientIp(request: Request): string {
-  const realIp = request.headers.get("x-real-ip");
-
-  if (realIp?.trim()) {
-    return realIp.trim();
-  }
-
-  const forwardedFor = request.headers.get("x-forwarded-for");
-
-  return forwardedFor?.split(",")[0]?.trim() || "unknown";
-}
+export { clientIp };

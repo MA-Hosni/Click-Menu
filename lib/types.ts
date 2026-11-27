@@ -1,4 +1,5 @@
 export type Language = "en" | "fr" | "ar";
+export type Currency = "TND";
 export type LocalizedText = Record<Language, string>;
 /** A menu section ID chosen by the owner. */
 export type Category = string;
@@ -11,7 +12,7 @@ export interface MenuCategory {
 export interface MenuOption {
   id: string;
   label: LocalizedText;
-  /** Additional price, in integer minor units (100 = 1 MAD). */
+  /** Additional price, in integer minor units for settings.currency. */
   price: number;
 }
 
@@ -20,9 +21,9 @@ export interface MenuItem {
   category: Category;
   name: LocalizedText;
   description: LocalizedText;
-  /** Price in integer minor units (100 = 1 MAD). */
+  /** Price in integer minor units for settings.currency. */
   price: number;
-  image: string;
+  image: string | null;
   tags: string[];
   available: boolean;
   options: MenuOption[];
@@ -34,14 +35,9 @@ export interface RestaurantSettings {
   description: string;
   address: string;
   hours: string;
-  /** Digits only, including country code. Blank until configured. */
-  whatsapp: string;
-  currency: "MAD";
-  deliveryFee: number;
+  currency: Currency;
   /** Public site origin or base URL. Blank until configured. */
   publicUrl: string;
-  /** Readable customer link name, such as "olive-and-ember". Blank uses the owner ID. */
-  slug: string;
 }
 
 export interface Catalog {
@@ -59,19 +55,4 @@ export interface CartItem {
   itemId: string;
   optionIds: string[];
   quantity: number;
-}
-
-export type OrderType = "dine-in" | "takeaway" | "delivery";
-export interface OrderDetails {
-  name: string;
-  type: OrderType;
-  table: string;
-  address: string;
-  notes: string;
-}
-
-export interface AppUser {
-  id: string;
-  name: string;
-  email: string;
 }

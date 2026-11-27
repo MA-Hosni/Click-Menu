@@ -1,8 +1,13 @@
 
 import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+import { resolveDatabaseDriver } from "./db/driver-config";
 
 config({ path: ".env.local" });
+
+const driver = resolveDatabaseDriver(process.env);
+if (driver === "postgres" && process.env.DATABASE_URL_POOLED)
+  throw new Error("DATABASE_URL_POOLED is ambiguous in local PostgreSQL migration mode.");
 
 const connectionString = process.env.DATABASE_URL;
 

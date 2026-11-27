@@ -1,7 +1,7 @@
 "use client";
 
 import { Leaf, Plus } from "lucide-react";
-import type { Language, MenuItem } from "../../../lib/types";
+import type { Currency, Language, MenuItem } from "../../../lib/types";
 import { formatPrice } from "../../../lib/cart";
 import { pickText } from "../../../lib/text";
 import { copy } from "../../../features/storefront/i18n/copy";
@@ -9,18 +9,22 @@ import Photo from "../shared/Photo";
 
 export default function MenuItemCard({
   item,
+  currency,
   language,
   headingLevel,
   index,
   onSelect,
   onQuickAdd,
+  orderingEnabled = true,
 }: {
   item: MenuItem;
+  currency: Currency;
   language: Language;
   headingLevel: "h2" | "h3";
   index: number;
   onSelect: (item: MenuItem) => void;
   onQuickAdd: (item: MenuItem) => void;
+  orderingEnabled?: boolean;
 }) {
   const t = copy[language];
   const Heading = headingLevel;
@@ -50,22 +54,24 @@ export default function MenuItemCard({
         </div>
         <p>{pickText(item.description, language)}</p>
         <div className="menu-item-bottom">
-          <strong>{formatPrice(item.price, language)}</strong>
-          <button
-            className="add-button"
-            disabled={!item.available}
-            onClick={() => onQuickAdd(item)}
-            aria-label={`${t.add} ${pickText(item.name, language)}`}
-          >
-            {item.available ? (
-              <>
-                {t.add}
-                <Plus size={15} />
-              </>
-            ) : (
-              t.sold
-            )}
-          </button>
+          <strong>{formatPrice(item.price, language, currency)}</strong>
+          {orderingEnabled && (
+            <button
+              className="add-button"
+              disabled={!item.available}
+              onClick={() => onQuickAdd(item)}
+              aria-label={`${t.add} ${pickText(item.name, language)}`}
+            >
+              {item.available ? (
+                <>
+                  {t.add}
+                  <Plus size={15} />
+                </>
+              ) : (
+                t.sold
+              )}
+            </button>
+          )}
         </div>
       </div>
     </article>

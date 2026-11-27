@@ -37,7 +37,7 @@ Unless specifically requested, preserve user-visible design, routes, API contrac
 
 ### app/
 
-Owns routes, layouts, metadata, and API handlers. Customer routes are / and /menu. Admin routes are /admin/menu, /admin/categories, /admin/orders, /admin/restaurant, and /admin/qr. /admin redirects to /admin/menu.
+Owns routes, layouts, metadata, and API handlers. Customer routes are /, /menu, and /t/[token]. Only /t/[token] establishes registered table context; /menu query parameters do not. Admin routes are /admin/menu, /admin/categories, /admin/orders, /admin/restaurant, and /admin/tables. /admin/qr redirects to /admin/tables; /admin redirects to /admin/menu.
 
 The nested app/admin/layout.tsx mounts the shared AdminProvider and persistent layout once. API handlers stay under app/api/ and should delegate reusable domain work to suitable modules.
 
@@ -81,7 +81,9 @@ Menu, categories, and restaurant settings edit one catalog draft owned by AdminP
 
 ### Orders and authentication
 
-Orders own independent loading, filtering, polling, notification, and status state. Preserve passwordless email-code authentication, secure session cookies, and owner checks in every protected API. Never expose secrets or trust client identity.
+Orders own independent loading, filtering, polling, notification, and status state. Preserve password-only singleton administrator authentication, secure hashed session cookies, credential-version invalidation, and administrator checks in every protected API. Never expose secrets or trust client identity.
+
+The restaurant is The Hood; there are no owner IDs in authentication. The catalog uses one fixed singleton row and menu image bytes use private S3-compatible object storage, with metadata in PostgreSQL. A temporary server-only key in `lib/legacy-restaurant-key.ts` remains only for the legacy order store. Do not use it as identity or expose it to clients. Remove the remaining order `owner_id` column and store parameter in the order persistence phase.
 
 ### Customer ordering
 

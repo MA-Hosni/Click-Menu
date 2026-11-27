@@ -5,6 +5,7 @@ import type { Category, Language, MenuCategory, MenuItem } from "../../../lib/ty
 import { formatPrice } from "../../../lib/cart";
 import { pickText } from "../../../lib/text";
 import { useAdmin } from "../../../features/admin/AdminProvider";
+import DishPhoto from "../../ui/DishPhoto";
 
 const label = (text: { en: string; fr: string; ar: string }, language: Language) => pickText(text, language);
 
@@ -74,12 +75,15 @@ export default function MenuItemList({
                       </label>
                       <div>
                         <span>{t.dishCount(items.length)}</span>
+                        {user && categories.length === 0 && (
+                          <p className="admin-note">{t.addCategoryBeforeDish}</p>
+                        )}
                         {user && (
                           <button
                             className="admin-secondary"
                             type="button"
                             onClick={onAddItem}
-                            disabled={catalog.items.length >= 100}
+                            disabled={categories.length === 0 || catalog.items.length >= 100}
                           >
                             <Plus size={16} />
                             {t.addDish}
@@ -98,14 +102,10 @@ export default function MenuItemList({
                         items.map((item) => (
                           <div className="admin-dish-row" key={item.id}>
                             <div className="admin-dish-identity">
-                              <img
+                              <DishPhoto
                                 src={item.image}
-                                alt=""
-                                width={60}
-                                height={60}
-                                onError={(e) => {
-                                  e.currentTarget.src = "/images/toast.jpg";
-                                }}
+                                alt={label(item.name, uiLanguage)}
+                                className="admin-dish-thumb"
                               />
                               <div>
                                 <strong>{label(item.name, uiLanguage)}</strong>
@@ -122,7 +122,7 @@ export default function MenuItemList({
                               </div>
                             </div>
                             <span className="admin-dish-price">
-                              {formatPrice(item.price, uiLanguage)}
+                              {formatPrice(item.price, uiLanguage, catalog.settings.currency)}
                             </span>
                             <button
                               type="button"

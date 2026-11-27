@@ -10,8 +10,8 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { AppUser, Catalog, Language } from "../../lib/types";
-import { createSeedCatalog } from "../../lib/menu-data";
+import type { Catalog, Language } from "../../lib/types";
+import { createEmptyCatalog } from "../../lib/menu-data";
 import { validateCatalog } from "../../lib/catalog-validation";
 import { reconcileCatalogSave } from "./reconcileCatalogSave";
 import {
@@ -25,7 +25,7 @@ import {
 type CatalogUpdater = (current: Catalog) => Catalog;
 
 interface AdminContextValue {
-  user: AppUser | null;
+  user: { name: string } | null;
   catalog: Catalog;
   saved: Catalog;
   loading: boolean;
@@ -48,9 +48,9 @@ const AdminContext = createContext<AdminContextValue | null>(null);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const saveInProgress = useRef(false);
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [catalog, setCatalog] = useState<Catalog>(createSeedCatalog);
-  const [saved, setSaved] = useState<Catalog>(createSeedCatalog);
+  const [user, setUser] = useState<{ name: string } | null>(null);
+  const [catalog, setCatalog] = useState<Catalog>(createEmptyCatalog);
+  const [saved, setSaved] = useState<Catalog>(createEmptyCatalog);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -67,7 +67,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     try {
       const session = await fetch("/api/me", { cache: "no-store" });
       if (!session.ok) throw new Error(copy.errorSignIn);
-      const sessionData = (await session.json()) as { user: AppUser | null };
+      const sessionData = (await session.json()) as { user: { name: string } | null };
       setUser(sessionData.user);
       if (sessionData.user) {
         const response = await fetch("/api/admin/catalog", {
@@ -78,12 +78,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
           throw new Error(
             (data as { error?: string }).error || copy.errorLoad,
           );
-        setCatalog(validateCatalog(data));
-        setSaved(validateCatalog(data));
+        const nextCatalog = data.revision === 0 ? createEmptyCatalog() : validateCatalog(data);
+        setCatalog(nextCatalog);
+        setSaved(nextCatalog);
       } else {
-        const demo = createSeedCatalog();
-        setCatalog(demo);
-        setSaved(demo);
+        const empty = createEmptyCatalog();
+        setCatalog(empty);
+        setSaved(empty);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : copy.errorLoad);

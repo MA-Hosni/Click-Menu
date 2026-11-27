@@ -1,13 +1,11 @@
 import { getCurrentUser } from "../../auth";
 import { jsonResponse, routeError } from "../../../lib/api-security";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await getCurrentUser();
+    const user = await getCurrentUser(request.headers.get("cookie"));
     return jsonResponse({
-      user: user
-        ? { id: user.userId, name: user.email, email: user.email }
-        : null,
+      user,
     });
   } catch (error) {
     return routeError(error);

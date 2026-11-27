@@ -5,20 +5,19 @@ import RestaurantPage from "../../components/client/restaurant/RestaurantPage";
 import { readPublicCatalog } from "../../lib/catalog-store";
 
 /**
- * A shared menu link previews as the restaurant itself on WhatsApp and
- * Instagram: its name, tagline and first dish photo.
+ * A shared menu link previews as the restaurant itself: its name, tagline,
+ * and first dish photo.
  */
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: Promise<{ shop?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
-  const { shop } = await searchParams;
-  if (!shop || shop.length > 200) return {};
+  await searchParams;
   try {
-    const found = await readPublicCatalog(shop);
-    if (!found) return {};
-    const { settings, items } = found.catalog;
+    const catalog = await readPublicCatalog();
+    if (!catalog) return {};
+    const { settings, items } = catalog;
     const title = `${settings.name} · Menu`;
     const description = settings.tagline.replace(/\s+/g, " ");
     const photo = items.find((item) => item.available)?.image;

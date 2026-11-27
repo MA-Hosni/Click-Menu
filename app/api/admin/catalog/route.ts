@@ -4,20 +4,20 @@ import {
   assertSameOrigin,
   jsonResponse,
   readBoundedJson,
-  requireOwnerId,
+  requireAdmin,
   routeError,
 } from "../../../../lib/api-security";
 import { readCatalog, saveCatalog } from "../../../../lib/catalog-store";
 import {
   CatalogValidationError,
-  validateCatalog,
+  validateTndCatalog,
 } from "../../../../lib/catalog-validation";
-import { createSeedCatalog } from "../../../../lib/menu-data";
+import { createEmptyCatalog } from "../../../../lib/menu-data";
 
 export async function GET() {
   try {
-    const ownerId = requireOwnerId(await getCurrentUser());
-    return jsonResponse((await readCatalog(ownerId)) ?? createSeedCatalog());
+    requireAdmin(await getCurrentUser());
+    return jsonResponse((await readCatalog()) ?? createEmptyCatalog());
   } catch (error) {
     return routeError(error);
   }
@@ -25,11 +25,11 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const ownerId = requireOwnerId(await getCurrentUser());
+    requireAdmin(await getCurrentUser());
     assertSameOrigin(request);
     const payload = await readBoundedJson(request);
-    const catalog = validateCatalog(payload);
-    return jsonResponse(await saveCatalog(ownerId, catalog));
+    const catalog = validateTndCatalog(payload);
+    return jsonResponse(await saveCatalog(catalog));
   } catch (error) {
     if (error instanceof CatalogValidationError)
       return routeError(new ApiError(error.message, 400));

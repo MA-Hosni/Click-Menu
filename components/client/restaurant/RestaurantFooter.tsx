@@ -1,15 +1,14 @@
 import { ArrowUpRight } from "lucide-react";
+import Link from "next/link";
 import type { Language } from "../../../lib/types";
 import { copy } from "../../../features/storefront/i18n/copy";
 import RestaurantBrand from "./RestaurantBrand";
 
 export default function RestaurantFooter({
   restaurantName,
-  shop,
   language,
 }: {
   restaurantName: string;
-  shop: string;
   language: Language;
 }) {
   const t = copy[language];
@@ -17,13 +16,13 @@ export default function RestaurantFooter({
   return (
     <footer className="site-footer">
       <div className="shell footer-top">
-        <a
+        <Link
           className="brand"
-          href={shop ? `/?shop=${encodeURIComponent(shop)}` : "/"}
+          href="/"
         >
           <RestaurantBrand />
           <span>{restaurantName}</span>
-        </a>
+        </Link>
         <div className="footer-links">
           <a href="/admin">
             {t.owner}
@@ -32,7 +31,6 @@ export default function RestaurantFooter({
         </div>
       </div>
       <div className="shell footer-bottom">
-        <span>{t.demoLabel}</span>
         <span>{t.powered} ↗</span>
       </div>
     </footer>

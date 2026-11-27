@@ -1,14 +1,11 @@
 "use client";
 
 import { ExternalLink } from "lucide-react";
-import { slugify, SLUG_PATTERN } from "../../../lib/catalog-validation";
 import type { Catalog } from "../../../lib/types";
 import { useAdmin } from "../../../features/admin/AdminProvider";
 
 export default function RestaurantPage() {
-  const { user, catalog, saved, updateCatalog, clearNotice, t } = useAdmin();
-  const shopId = user ? saved.settings.slug || user.id : undefined;
-  const publicLink = shopId ? `/menu?shop=${encodeURIComponent(shopId)}` : "/menu";
+  const { user, catalog, updateCatalog, clearNotice, t } = useAdmin();
   function setting<K extends keyof Catalog["settings"]>(key: K, value: Catalog["settings"][K]) {
     updateCatalog((current) => ({ ...current, settings: { ...current.settings, [key]: value } }));
     clearNotice();
@@ -77,50 +74,12 @@ export default function RestaurantPage() {
                     </section>
                     <section className="admin-setting-section">
                       <div>
-                        <h2>{t.whatsappTitle}</h2>
-                        <p>{t.whatsappIntro}</p>
-                      </div>
-                      <div className="admin-setting-fields">
-                        <label className="admin-field">
-                          {t.whatsappNumber}
-                          <input
-                            type="tel"
-                            placeholder="212600000000"
-                            value={catalog.settings.whatsapp}
-                            onChange={(e) =>
-                              setting("whatsapp", e.target.value)
-                            }
-                          />
-                          <small>{t.whatsappHint}</small>
-                        </label>
-                        <label className="admin-field">
-                          {t.deliveryFee}
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min="0"
-                            max="1000"
-                            step="0.01"
-                            value={catalog.settings.deliveryFee / 100}
-                            onChange={(e) =>
-                              setting(
-                                "deliveryFee",
-                                Math.round(Number(e.target.value) * 100),
-                              )
-                            }
-                          />
-                        </label>
-                        <p className="admin-note">{t.pricesInDh}</p>
-                      </div>
-                    </section>
-                    <section className="admin-setting-section">
-                      <div>
                         <h2>{t.publicMenuTitle}</h2>
                         <p>{t.publicMenuIntro}</p>
                         {user && (
                           <a
                             className="admin-text-button"
-                            href={publicLink}
+                            href="/menu"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -129,37 +88,6 @@ export default function RestaurantPage() {
                         )}
                       </div>
                       <div className="admin-setting-fields">
-                        <label className="admin-field">
-                          {t.linkName}
-                          <div className="admin-slug-input">
-                            <span>/menu?shop=</span>
-                            <input
-                              maxLength={60}
-                              placeholder={slugify(catalog.settings.name)}
-                              value={catalog.settings.slug}
-                              onChange={(e) =>
-                                setting("slug", e.target.value.toLowerCase())
-                              }
-                              aria-invalid={
-                                !!catalog.settings.slug &&
-                                !SLUG_PATTERN.test(catalog.settings.slug)
-                              }
-                            />
-                          </div>
-                          <small>{t.linkNameHint}</small>
-                        </label>
-                        {!catalog.settings.slug &&
-                          slugify(catalog.settings.name).length >= 3 && (
-                            <button
-                              type="button"
-                              className="admin-text-button admin-slug-suggest"
-                              onClick={() =>
-                                setting("slug", slugify(catalog.settings.name))
-                              }
-                            >
-                              {t.useSuggestion(slugify(catalog.settings.name))}
-                            </button>
-                          )}
                         <label className="admin-field">
                           {t.websiteAddress}
                           <input

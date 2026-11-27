@@ -8,6 +8,90 @@
       "when": 1795335691832,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795621085026,
+      "tag": "0001_owner_password_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795621800627,
+      "tag": "0002_owner_session_credential_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795638229924,
+      "tag": "0003_single_admin_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795640574152,
+      "tag": "0004_single_catalog_s3_images",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795641800000,
+      "tag": "0005_atomic_image_capacity",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795730000000,
+      "tag": "0006_restaurant_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795730000001,
+      "tag": "0007_table_qr_rotation_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795730000002,
+      "tag": "0008_legacy_orders_archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795730000003,
+      "tag": "0009_normalized_dine_in_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795730000004,
+      "tag": "0010_order_idempotency_and_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795730000005,
+      "tag": "0011_order_tracking_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795730000006,
+      "tag": "0012_tnd_catalog_price_review",
+      "breakpoints": true
     }
   ]
 }

@@ -7,10 +7,10 @@ export async function GET() {
 
     return Response.json({
       success: true,
-      database: "Neon PostgreSQL",
+      database: "PostgreSQL",
     });
-  } catch (error) {
-    console.error("Database health check failed:", error);
+  } catch {
+    console.error("Database health check failed.");
 
     return Response.json(
       { success: false },

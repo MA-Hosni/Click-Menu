@@ -2,22 +2,23 @@
 
 import { useEffect, useRef } from "react";
 import { ShoppingBag } from "lucide-react";
+import Link from "next/link";
 import type { Language } from "../../../lib/types";
 import { copy } from "../../../features/storefront/i18n/copy";
 import RestaurantBrand from "./RestaurantBrand";
 
 export default function RestaurantHeader({
   restaurantName,
-  shop,
   language,
   itemCount,
+  showCart = true,
   onLanguageChange,
   onOpenCart,
 }: {
   restaurantName: string;
-  shop: string;
   language: Language;
   itemCount: number;
+  showCart?: boolean;
   onLanguageChange: (language: Language) => void;
   onOpenCart: () => void;
 }) {
@@ -41,14 +42,14 @@ export default function RestaurantHeader({
         Skip to menu
       </a>
       <header className="site-header shell">
-        <a
+        <Link
           className="brand"
-          href={shop ? `/?shop=${encodeURIComponent(shop)}` : "/"}
+          href="/"
           aria-label={`${restaurantName} home`}
         >
           <RestaurantBrand />
           <span>{restaurantName}</span>
-        </a>
+        </Link>
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#menu">{t.menu}</a>
           <a href="#story">{t.story}</a>
@@ -69,15 +70,17 @@ export default function RestaurantHeader({
               <option value="ar">عربي</option>
             </select>
           </label>
-          <button
-            ref={bagRef}
-            className="bag-button"
-            aria-label={`${t.cart} (${itemCount})`}
-            onClick={onOpenCart}
-          >
-            <ShoppingBag size={20} />
-            <span>{itemCount}</span>
-          </button>
+          {showCart && (
+            <button
+              ref={bagRef}
+              className="bag-button"
+              aria-label={`${t.cart} (${itemCount})`}
+              onClick={onOpenCart}
+            >
+              <ShoppingBag size={20} />
+              <span>{itemCount}</span>
+            </button>
+          )}
         </div>
       </header>
     </>
