@@ -1,4 +1,0 @@
-ALTER TABLE "restaurant_catalogs" ADD COLUMN "tnd_reviewed_revision" integer;--> statement-breakpoint
-ALTER TABLE "restaurant_catalogs" ADD COLUMN "tnd_reviewed_at" bigint;--> statement-breakpoint
-ALTER TABLE "restaurant_catalogs" ADD CONSTRAINT "restaurant_catalogs_tnd_review_state_pair_check" CHECK (("restaurant_catalogs"."tnd_reviewed_revision" IS NULL) = ("restaurant_catalogs"."tnd_reviewed_at" IS NULL));--> statement-breakpoint
-ALTER TABLE "restaurant_catalogs" ADD CONSTRAINT "restaurant_catalogs_tnd_review_revision_check" CHECK ("restaurant_catalogs"."tnd_reviewed_revision" IS NULL OR "restaurant_catalogs"."tnd_reviewed_revision" = "restaurant_catalogs"."revision");

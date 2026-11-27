@@ -17,10 +17,9 @@ const key = token;
 function fixture() {
   const tableToken = token();
   const catalog = createTestCatalog();
-  catalog.settings.currency = "TND";
   catalog.revision = 4;
-  catalog.items[0].price = 1200;
-  catalog.items[0].options[0].price = 100;
+  catalog.items[0].price = 75_000;
+  catalog.items[0].options[0].price = 7_500;
   const store = {
     catalog: JSON.stringify(catalog), revision: 4, reviewedRevision: 4,
     reviewedAt: 1_700_000_000_000, active: true, currentTokenHash: hashTableToken(tableToken),
@@ -44,8 +43,8 @@ function fixture() {
       tx.catalogLocked = true;
       return {
         payload: tx.catalog, revision: tx.revision,
-        tndReviewedRevision: Object.hasOwn(tx, "reviewedRevision") ? tx.reviewedRevision : tx.revision,
-        tndReviewedAt: Object.hasOwn(tx, "reviewedAt") ? tx.reviewedAt : 1_700_000_000_000,
+        priceReviewedRevision: Object.hasOwn(tx, "reviewedRevision") ? tx.reviewedRevision : tx.revision,
+        priceReviewedAt: Object.hasOwn(tx, "reviewedAt") ? tx.reviewedAt : 1_700_000_000_000,
       };
     },
     async lockActiveTable(tx, digest) {
@@ -59,7 +58,7 @@ function fixture() {
       });
       return {
         id: order.id, tableLabelSnapshot: order.tableLabelSnapshot,
-        status: order.status, currency: order.currency,
+        status: order.status,
         subtotalMillimes: order.subtotalMillimes, totalMillimes: order.totalMillimes,
         createdAt: order.createdAt, updatedAt: order.updatedAt,
       };
@@ -88,7 +87,7 @@ function fixture() {
 }
 
 describe("dine-in order persistence service", () => {
-  it("creates a pending TND order and immutable snapshots using saved data", async () => {
+  it("creates a pending order and immutable amount snapshots using saved data", async () => {
     const { service, store, request, key: idempotencyKey } = fixture();
     const result = await service.submit(request, idempotencyKey);
     const saved = [...store.orders.values()][0];
@@ -100,7 +99,7 @@ describe("dine-in order persistence service", () => {
     assert.equal(store.items.length, 1);
     assert.equal(saved.tableId, "table-id");
     assert.equal(saved.tableLabelSnapshot, "Table 3");
-    assert.equal(saved.currency, "TND");
+    assert.equal(Object.hasOwn(saved, "currency"), false);
     assert.equal(saved.subtotalMillimes, store.items[0].lineSubtotalMillimes);
     assert.equal(saved.trackingTokenHash, hashTrackingToken(result.trackingToken));
     assert.notEqual(saved.trackingTokenHash, result.trackingToken);
@@ -170,17 +169,18 @@ describe("dine-in order persistence service", () => {
     assert.equal(store.items.length, 0);
   });
 
-  it("rejects non-TND and unreviewed/stale catalog state", async () => {
+  it("accepts catalogs without currency and rejects unreviewed/stale catalog state", async () => {
     const { service, store, request } = fixture();
-    const validCatalog = store.catalog;
     const catalog = JSON.parse(store.catalog);
     delete catalog.settings.currency;
     store.catalog = JSON.stringify(catalog);
-    await assert.rejects(service.submit(request, key()), { code: "catalog_not_ready" });
-    store.catalog = validCatalog;
+    await service.submit(request, key());
+    assert.equal(store.orders.size, 1);
+    assert.equal(store.items.length, 1);
     store.reviewedRevision = null;
     await assert.rejects(service.submit(request, key()), { code: "catalog_not_reviewed" });
-    assert.equal(store.orders.size, 0);
+    assert.equal(store.orders.size, 1);
+    assert.equal(store.items.length, 1);
   });
 
   it("does not persist header/items when item insertion fails", async () => {

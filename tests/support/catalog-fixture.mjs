@@ -7,7 +7,6 @@ export function createTestCatalog() {
       description: "Test description",
       address: "Test location",
       hours: "Test hours",
-      currency: "TND",
       publicUrl: "",
     },
     categories: [{

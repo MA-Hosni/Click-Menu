@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,10 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
-const migrationPath = path.join(
-  projectRoot,
-  "drizzle/0011_order_tracking_recovery.sql",
-);
+const migrationPath = path.join(projectRoot, "drizzle/0000_init.sql");
 const suffix = randomUUID().replaceAll("-", "");
 const containerName = `clickmenu-pg17-${suffix.slice(0, 12)}`;
 const databaseName = `tracking_test_${suffix}`;
@@ -69,15 +66,28 @@ function sqlString(value) {
 }
 
 function insertSql(id, version, nonce, ciphertext, authTag) {
+  const hash = (value) => createHash("sha256").update(value).digest("hex");
   const values = [
     sqlString(id),
+    sqlString(hash(`tracking:${id}`)),
+    sqlString(hash(`idempotency:${id}`)),
+    sqlString(hash(`request:${id}`)),
+    "'recovery-table'",
+    "'Recovery test'",
+    "'pending'",
+    "0",
+    "0",
+    "NULL",
+    "NULL",
     version,
     nonce === null ? "NULL" : sqlString(nonce),
     ciphertext === null ? "NULL" : sqlString(ciphertext),
     authTag === null ? "NULL" : sqlString(authTag),
+    "1",
+    "1",
   ];
 
-  return `INSERT INTO dine_in_orders (id, tracking_recovery_version, tracking_recovery_nonce, tracking_recovery_ciphertext, tracking_recovery_auth_tag) VALUES (${values.join(", ")});`;
+  return `INSERT INTO dine_in_orders (id, tracking_token_hash, idempotency_key_hash, request_hash, table_id, table_label_snapshot, status, subtotal_millimes, total_millimes, customer_name, customer_notes, tracking_recovery_version, tracking_recovery_nonce, tracking_recovery_ciphertext, tracking_recovery_auth_tag, created_at, updated_at) VALUES (${values.join(", ")});`;
 }
 
 function accepted(name, sql) {
@@ -192,16 +202,13 @@ try {
   assert.match(version.stdout, /^17\./);
   console.log(`PostgreSQL version: ${version.stdout}`);
 
-  assertCommand(
-    psql("CREATE TABLE dine_in_orders (id text PRIMARY KEY);"),
-    "Creating minimal prerequisite table",
-  );
-  console.log("PASS setup: minimal prerequisite table");
-
-  // Execute the migration file verbatim; migrations 0001–0010 are not applied.
   const migrationSql = readFileSync(migrationPath, "utf8");
-  assertCommand(psql(migrationSql), "Executing actual migration 0011 SQL");
-  console.log("PASS setup: actual migration 0011 SQL executed");
+  assertCommand(psql(migrationSql), "Executing the complete initial schema migration");
+  assertCommand(psql(`
+    INSERT INTO restaurant_tables (id, label, qr_token_hash, created_at, updated_at)
+    VALUES ('recovery-table', 'Recovery test', '${"a".repeat(64)}', 1, 1);
+  `), "Creating the required order table reference");
+  console.log("PASS setup: complete initial schema migration executed");
 
   const nonce = randomBytes(12).toString("base64");
   const ciphertext = randomBytes(43).toString("base64");
@@ -217,7 +224,7 @@ try {
   );
   accepted(
     "UPDATE from all-NULL fields to a complete envelope",
-    `INSERT INTO dine_in_orders (id) VALUES ('accept-update'); UPDATE dine_in_orders SET tracking_recovery_version=1, tracking_recovery_nonce=${sqlString(nonce)}, tracking_recovery_ciphertext=${sqlString(ciphertext)}, tracking_recovery_auth_tag=${sqlString(authTag)} WHERE id='accept-update';`,
+    `${insertSql("accept-update", "NULL", null, null, null)} UPDATE dine_in_orders SET tracking_recovery_version=1, tracking_recovery_nonce=${sqlString(nonce)}, tracking_recovery_ciphertext=${sqlString(ciphertext)}, tracking_recovery_auth_tag=${sqlString(authTag)} WHERE id='accept-update';`,
   );
 
   const invalidCases = [

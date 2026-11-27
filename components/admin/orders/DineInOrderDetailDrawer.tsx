@@ -142,10 +142,6 @@ export default function DineInOrderDetailDrawer({
               <dd><span className={`admin-dine-order-status ${detail.status}`}>{t.dineInStatus[detail.status]}</span></dd>
             </div>
             <div>
-              <dt>{t.dineInOrderCurrencyLabel}</dt>
-              <dd>{detail.currency}</dd>
-            </div>
-            <div>
               <dt>{t.dineInOrderNotesLabel}</dt>
               <dd className="admin-dine-order-notes">{detail.customerNotes?.trim() || t.dineInOrderNotProvided}</dd>
             </div>

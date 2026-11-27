@@ -9,7 +9,6 @@ export function createEmptyCatalog(): Catalog {
       description: "",
       address: "",
       hours: "",
-      currency: "TND",
       publicUrl: "",
     },
     categories: [],

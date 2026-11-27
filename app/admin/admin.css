@@ -1096,11 +1096,16 @@
 }
 .admin-dine-order-open {
   display: block;
+  width: 100%;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--admin-ink);
   text-align: start;
+  font: inherit;
+  cursor: pointer;
+}
+.admin-dine-order-open .admin-dine-order-heading > div:first-child > span:first-child {
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;

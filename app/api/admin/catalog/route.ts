@@ -10,7 +10,7 @@ import {
 import { readCatalog, saveCatalog } from "../../../../lib/catalog-store";
 import {
   CatalogValidationError,
-  validateTndCatalog,
+  validateCatalog,
 } from "../../../../lib/catalog-validation";
 import { createEmptyCatalog } from "../../../../lib/menu-data";
 
@@ -28,7 +28,7 @@ export async function PUT(request: Request) {
     requireAdmin(await getCurrentUser());
     assertSameOrigin(request);
     const payload = await readBoundedJson(request);
-    const catalog = validateTndCatalog(payload);
+    const catalog = validateCatalog(payload);
     return jsonResponse(await saveCatalog(catalog));
   } catch (error) {
     if (error instanceof CatalogValidationError)

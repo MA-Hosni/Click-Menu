@@ -19,7 +19,6 @@ function header(overrides = {}) {
     customerName: "Guest",
     customerNotes: "No onions",
     tableLabel: "Patio 1",
-    currency: "TND",
     subtotalMillimes: "2001700",
     totalMillimes: "2001700",
     ...overrides,
@@ -87,7 +86,6 @@ describe("normalized dine-in order detail", () => {
       customerName: "Guest",
       customerNotes: "No onions",
       tableLabel: "Patio 1",
-      currency: "TND",
       subtotalMillimes: 2001700,
       totalMillimes: 2001700,
       items: [
@@ -110,7 +108,7 @@ describe("normalized dine-in order detail", () => {
       ],
     });
     assert.deepEqual(Object.keys(detail).sort(), [
-      "createdAt", "currency", "customerName", "customerNotes", "items", "orderId",
+      "createdAt", "customerName", "customerNotes", "items", "orderId",
       "status", "subtotalMillimes", "tableLabel", "totalMillimes",
     ].sort());
   });

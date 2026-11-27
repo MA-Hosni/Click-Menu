@@ -191,7 +191,7 @@ describe("admin catalog", () => {
     await assert.rejects(store.save(catalog), { status: 409 });
   });
 
-  it("serves a blank TND catalog before setup and never substitutes demo data", async () => {
+  it("serves a blank currency-free catalog before setup and never substitutes demo data", async () => {
     let reads = 0;
     const catalog = createPublicCatalogHandler(async () => {
       reads += 1;
@@ -206,7 +206,7 @@ describe("admin catalog", () => {
     for (const response of responses) {
       const body = await response.json();
       assert.equal(body.settings.name, "The Hood");
-      assert.equal(body.settings.currency, "TND");
+      assert.equal(Object.hasOwn(body.settings, "currency"), false);
       assert.deepEqual(body.categories, []);
       assert.deepEqual(body.items, []);
     }

@@ -6,7 +6,7 @@ import "../../support/register-types.mjs";
 const requireTs = createRequire(import.meta.url);
 const { createCatalogOperations } = requireTs("../../../lib/catalog-operations.ts");
 
-function makeCatalog(currency = "TND") {
+function makeCatalog() {
   return {
     settings: {
       name: "Test restaurant",
@@ -14,7 +14,6 @@ function makeCatalog(currency = "TND") {
       description: "Test catalog only",
       address: "Test location",
       hours: "Test hours",
-      currency,
       publicUrl: "",
     },
     categories: [{
@@ -45,8 +44,8 @@ function makeStore(catalog, { beforeReview } = {}) {
     ? {
         payload: JSON.stringify(catalog),
         revision: catalog.revision,
-        tndReviewedRevision: null,
-        tndReviewedAt: null,
+        priceReviewedRevision: null,
+        priceReviewedAt: null,
       }
     : null;
   const audit = [];
@@ -54,20 +53,20 @@ function makeStore(catalog, { beforeReview } = {}) {
     async read() { return row ? structuredClone(row) : null; },
     async create(payload, revision, updatedAt) {
       if (row) return false;
-      row = { payload, revision, updatedAt, tndReviewedRevision: null, tndReviewedAt: null };
+      row = { payload, revision, updatedAt, priceReviewedRevision: null, priceReviewedAt: null };
       return true;
     },
     async update(expectedRevision, payload, revision, updatedAt) {
       if (!row || row.revision !== expectedRevision) return false;
-      row = { payload, revision, updatedAt, tndReviewedRevision: null, tndReviewedAt: null };
+      row = { payload, revision, updatedAt, priceReviewedRevision: null, priceReviewedAt: null };
       return true;
     },
     async review(expectedRevision, reviewedAt, expectedPayload, eventId, actor) {
       if (beforeReview) await beforeReview({ get row() { return row; }, set row(value) { row = value; } });
       if (!row || row.revision !== expectedRevision || row.payload !== expectedPayload)
         return false;
-      row = { ...row, tndReviewedRevision: expectedRevision, tndReviewedAt: reviewedAt };
-      audit.push({ eventId, action: "tnd_price_reviewed", actor, createdAt: reviewedAt });
+      row = { ...row, priceReviewedRevision: expectedRevision, priceReviewedAt: reviewedAt };
+      audit.push({ eventId, action: "catalog_prices_reviewed", actor, createdAt: reviewedAt });
       return true;
     },
   });
@@ -86,10 +85,10 @@ describe("TND catalog price review", () => {
     assert.deepEqual(result, {
       revision: 7,
       reviewedRevision: 7,
-      reviewedAt: fixture.row.tndReviewedAt,
+      reviewedAt: fixture.row.priceReviewedAt,
     });
     assert.ok(Number.isSafeInteger(result.reviewedAt));
-    assert.equal(fixture.row.tndReviewedRevision, 7);
+    assert.equal(fixture.row.priceReviewedRevision, 7);
     assert.equal(fixture.audit.length, 1);
     assert.equal(fixture.audit[0].actor, "The Hood admin");
   });
@@ -111,32 +110,19 @@ describe("TND catalog price review", () => {
     assert.equal(fixture.audit.length, 0);
   });
 
-  it("rejects a non-TND catalog without changing review state", async () => {
-    const fixture = makeStore(makeCatalog("EUR"));
-    await assert.rejects(fixture.store.review(7, "The Hood admin"), { status: 422 });
-    assert.equal(fixture.row.tndReviewedRevision, null);
-    assert.equal(fixture.row.tndReviewedAt, null);
-    assert.equal(fixture.audit.length, 0);
-  });
-
-  it("rejects missing or unsupported currencies", async () => {
-    const unsupported = makeCatalog("EUR");
-    const unsupportedStore = makeStore(unsupported);
-    await assert.rejects(unsupportedStore.store.review(7, "The Hood admin"), { status: 422 });
-    assert.equal(unsupportedStore.row.tndReviewedRevision, null);
-
-    const missing = makeCatalog();
-    delete missing.settings.currency;
-    const missingStore = makeStore(missing);
-    await assert.rejects(missingStore.store.review(7, "The Hood admin"), { status: 422 });
-    assert.equal(missingStore.row.tndReviewedRevision, null);
+  it("ignores legacy catalog currency labels when reviewing a saved revision", async () => {
+    const legacy = makeCatalog();
+    legacy.settings.currency = "EUR";
+    const fixture = makeStore(legacy);
+    await fixture.store.review(7, "The Hood admin");
+    assert.equal(fixture.row.priceReviewedRevision, 7);
   });
 
   it("rejects stale or invalid expected revisions before recording a review", async () => {
     const fixture = makeStore(makeCatalog());
     await assert.rejects(fixture.store.review(6, "The Hood admin"), { status: 409 });
     await assert.rejects(fixture.store.review("7", "The Hood admin"), { status: 400 });
-    assert.equal(fixture.row.tndReviewedRevision, null);
+    assert.equal(fixture.row.priceReviewedRevision, null);
     assert.equal(fixture.audit.length, 0);
   });
 
@@ -145,13 +131,13 @@ describe("TND catalog price review", () => {
     badProduct.items[0].price = -1;
     const productStore = makeStore(badProduct);
     await assert.rejects(productStore.store.review(7, "The Hood admin"), { status: 422 });
-    assert.equal(productStore.row.tndReviewedRevision, null);
+    assert.equal(productStore.row.priceReviewedRevision, null);
 
     const badOption = makeCatalog();
     badOption.items[0].options[0].price = Number.MAX_SAFE_INTEGER + 1;
     const optionStore = makeStore(badOption);
     await assert.rejects(optionStore.store.review(7, "The Hood admin"), { status: 422 });
-    assert.equal(optionStore.row.tndReviewedRevision, null);
+    assert.equal(optionStore.row.priceReviewedRevision, null);
     assert.equal(productStore.audit.length + optionStore.audit.length, 0);
   });
 
@@ -165,8 +151,8 @@ describe("TND catalog price review", () => {
     negativeOption.items[0].options[0].price = -1;
     const negativeOptionStore = makeStore(negativeOption);
     await assert.rejects(negativeOptionStore.store.review(7, "The Hood admin"), { status: 422 });
-    assert.equal(missingProductStore.row.tndReviewedRevision, null);
-    assert.equal(negativeOptionStore.row.tndReviewedRevision, null);
+    assert.equal(missingProductStore.row.priceReviewedRevision, null);
+    assert.equal(negativeOptionStore.row.priceReviewedRevision, null);
   });
 
   it("preserves the stored prices without currency conversion", async () => {
@@ -189,8 +175,8 @@ describe("TND catalog price review", () => {
 
     assert.equal(saved.revision, 8);
     assert.equal(fixture.row.revision, 8);
-    assert.equal(fixture.row.tndReviewedRevision, null);
-    assert.equal(fixture.row.tndReviewedAt, null);
+    assert.equal(fixture.row.priceReviewedRevision, null);
+    assert.equal(fixture.row.priceReviewedAt, null);
   });
 
   it("cannot mark a revision reviewed if it changes between validation and conditional update", async () => {
@@ -200,16 +186,16 @@ describe("TND catalog price review", () => {
           ...state.row,
           revision: 8,
           payload: JSON.stringify({ ...makeCatalog(), revision: 8 }),
-          tndReviewedRevision: null,
-          tndReviewedAt: null,
+          priceReviewedRevision: null,
+          priceReviewedAt: null,
         };
       },
     });
 
     await assert.rejects(fixture.store.review(7, "The Hood admin"), { status: 409 });
     assert.equal(fixture.row.revision, 8);
-    assert.equal(fixture.row.tndReviewedRevision, null);
-    assert.equal(fixture.row.tndReviewedAt, null);
+    assert.equal(fixture.row.priceReviewedRevision, null);
+    assert.equal(fixture.row.priceReviewedAt, null);
     assert.equal(fixture.audit.length, 0);
   });
 });

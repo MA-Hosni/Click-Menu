@@ -33,18 +33,18 @@ export const restaurantCatalogs = pgTable("restaurant_catalogs", {
   id: integer("id").primaryKey().default(1),
   payload: text("payload").notNull(),
   revision: integer("revision").notNull(),
-  tndReviewedRevision: integer("tnd_reviewed_revision"),
-  tndReviewedAt: bigint("tnd_reviewed_at", { mode: "number" }),
+  priceReviewedRevision: integer("price_reviewed_revision"),
+  priceReviewedAt: bigint("price_reviewed_at", { mode: "number" }),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 }, (table) => [
   check("restaurant_catalogs_singleton_check", sql`${table.id} = 1`),
   check(
-    "restaurant_catalogs_tnd_review_state_pair_check",
-    sql`(${table.tndReviewedRevision} IS NULL) = (${table.tndReviewedAt} IS NULL)`,
+    "restaurant_catalogs_price_review_state_pair_check",
+    sql`(${table.priceReviewedRevision} IS NULL) = (${table.priceReviewedAt} IS NULL)`,
   ),
   check(
-    "restaurant_catalogs_tnd_review_revision_check",
-    sql`${table.tndReviewedRevision} IS NULL OR ${table.tndReviewedRevision} = ${table.revision}`,
+    "restaurant_catalogs_price_review_revision_check",
+    sql`${table.priceReviewedRevision} IS NULL OR ${table.priceReviewedRevision} = ${table.revision}`,
   ),
 ]);
 
@@ -151,7 +151,6 @@ export const dineInOrders = pgTable(
       }),
     tableLabelSnapshot: text("table_label_snapshot").notNull(),
     status: text("status").notNull().default("pending"),
-    currency: text("currency").notNull().default("TND"),
     subtotalMillimes: bigint("subtotal_millimes", { mode: "number" }).notNull(),
     totalMillimes: bigint("total_millimes", { mode: "number" }).notNull(),
     customerName: text("customer_name"),
@@ -189,7 +188,6 @@ export const dineInOrders = pgTable(
       "dine_in_orders_status_check",
       sql`${table.status} IN (${statusSql})`,
     ),
-    check("dine_in_orders_currency_check", sql`${table.currency} = 'TND'`),
     check(
       "dine_in_orders_subtotal_millimes_check",
       sql`${table.subtotalMillimes} >= 0 AND ${table.subtotalMillimes} <= ${maxSafeInteger}`,

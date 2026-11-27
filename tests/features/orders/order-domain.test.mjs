@@ -8,7 +8,7 @@ const requireTs = createRequire(import.meta.url);
 import { createTestCatalog } from "../../support/catalog-fixture.mjs";
 const {
   canonicalizeDineInOrderRequest,
-  createTrustedTndCatalogReadiness,
+  createTrustedCatalogReadiness,
   DineInOrderDomainError,
   identifyDineInOrderRequest,
   prepareDineInOrder,
@@ -36,10 +36,9 @@ function contextFor(requestToken) {
 
 function makeCatalog() {
   const catalog = createTestCatalog();
-  catalog.settings.currency = "TND";
   catalog.revision = 17;
-  catalog.items[0].price = 1250;
-  catalog.items[0].options[0].price = 275;
+  catalog.items[0].price = 75_000;
+  catalog.items[0].options[0].price = 7_500;
   return catalog;
 }
 
@@ -63,13 +62,13 @@ function validRequest(overrides = {}) {
 function prepare(
   request = validRequest(),
   catalog = makeCatalog(),
-  readiness = createTrustedTndCatalogReadiness(17),
+  readiness = createTrustedCatalogReadiness(17),
 ) {
   return prepareDineInOrder(request, token(), catalog, readiness, context);
 }
 
 describe("normalized dine-in order domain", () => {
-  it("prices a reviewed TND catalog and builds snapshots from saved catalog data", () => {
+  it("prices a reviewed currency-free catalog and builds snapshots from saved data", () => {
     const catalog = makeCatalog();
     const request = validRequest({
       items: [{
@@ -84,7 +83,7 @@ describe("normalized dine-in order domain", () => {
     const option = product.options[0];
     const unit = product.price + option.price;
 
-    assert.equal(prepared.snapshot.currency, "TND");
+    assert.equal(Object.hasOwn(prepared.snapshot, "currency"), false);
     assert.equal(prepared.snapshot.status, "pending");
     assert.equal(prepared.snapshot.tableId, context.id);
     assert.equal(prepared.snapshot.tableLabelSnapshot, context.label);
@@ -100,10 +99,12 @@ describe("normalized dine-in order domain", () => {
     assert.equal("price" in prepared.snapshot.items[0], false);
   });
 
-  it("rejects non-TND and malformed catalogs", () => {
-    const missingCurrency = makeCatalog();
-    delete missingCurrency.settings.currency;
-    assert.throws(() => prepare(validRequest(), missingCurrency), { code: "catalog_not_ready" });
+  it("prices fixed-scale amounts and rejects malformed catalogs", () => {
+    const catalog = makeCatalog();
+    const request = validRequest({ items: [{ productId: catalog.items[0].id, quantity: 2, optionIds: [catalog.items[0].options[0].id] }] });
+    const priced = prepare(request, catalog);
+    assert.equal(priced.snapshot.items[0].unitPriceMillimes, 82_500);
+    assert.equal(priced.snapshot.totalMillimes, 165_000);
 
     const malformed = makeCatalog();
     malformed.items[0].price = -1;
@@ -117,10 +118,10 @@ describe("normalized dine-in order domain", () => {
     assert.throws(() => prepare(validRequest(), makeCatalog(), { reviewedRevision: 17 }), {
       code: "catalog_not_reviewed",
     });
-    assert.throws(() => createTrustedTndCatalogReadiness(-1), {
+    assert.throws(() => createTrustedCatalogReadiness(-1), {
       code: "catalog_not_reviewed",
     });
-    assert.throws(() => prepare(validRequest(), makeCatalog(), createTrustedTndCatalogReadiness(16)), {
+    assert.throws(() => prepare(validRequest(), makeCatalog(), createTrustedCatalogReadiness(16)), {
       code: "catalog_not_reviewed",
     });
     assert.throws(() => prepare(validRequest(), makeCatalog(), null), {
@@ -131,14 +132,14 @@ describe("normalized dine-in order domain", () => {
   it("requires the trusted active table resolution to match the submitted QR token", () => {
     const request = validRequest();
     assert.throws(
-      () => prepareDineInOrder(request, token(), makeCatalog(), createTrustedTndCatalogReadiness(17), {
+      () => prepareDineInOrder(request, token(), makeCatalog(), createTrustedCatalogReadiness(17), {
         ...context,
         qrTokenHash: "0".repeat(64),
       }),
       { code: "invalid_table_context" },
     );
     assert.throws(
-      () => prepareDineInOrder(request, token(), makeCatalog(), createTrustedTndCatalogReadiness(17), {
+      () => prepareDineInOrder(request, token(), makeCatalog(), createTrustedCatalogReadiness(17), {
         ...context,
         isActive: false,
       }),
@@ -222,11 +223,11 @@ describe("normalized dine-in order domain", () => {
       prepareDineInOrder(sharedInputs([
         { productId: second.id, quantity: 1, optionIds: [] },
         { productId: first.id, quantity: 1, optionIds: [first.options[1].id, first.options[0].id] },
-      ]), token(), catalog, createTrustedTndCatalogReadiness(17), contextFor(sharedToken)).requestHash,
+      ]), token(), catalog, createTrustedCatalogReadiness(17), contextFor(sharedToken)).requestHash,
       prepareDineInOrder(sharedInputs([
         { productId: first.id, quantity: 1, optionIds: [first.options[0].id, first.options[1].id] },
         { productId: second.id, quantity: 1, optionIds: [] },
-      ]), token(), catalog, createTrustedTndCatalogReadiness(17), contextFor(sharedToken)).requestHash,
+      ]), token(), catalog, createTrustedCatalogReadiness(17), contextFor(sharedToken)).requestHash,
     );
   });
 
@@ -248,14 +249,14 @@ describe("normalized dine-in order domain", () => {
   it("hashes customer order content independently of the current QR token", () => {
     const tableToken = token();
     const request = validRequest({ tableToken });
-    const first = prepareDineInOrder(request, token(), makeCatalog(), createTrustedTndCatalogReadiness(17), contextFor(tableToken));
-    const same = prepareDineInOrder(structuredClone(request), token(), makeCatalog(), createTrustedTndCatalogReadiness(17), contextFor(tableToken));
+    const first = prepareDineInOrder(request, token(), makeCatalog(), createTrustedCatalogReadiness(17), contextFor(tableToken));
+    const same = prepareDineInOrder(structuredClone(request), token(), makeCatalog(), createTrustedCatalogReadiness(17), contextFor(tableToken));
     const otherToken = token();
     const otherTable = prepareDineInOrder(
       { ...request, tableToken: otherToken },
       token(),
       makeCatalog(),
-      createTrustedTndCatalogReadiness(17),
+      createTrustedCatalogReadiness(17),
       { ...context, qrTokenHash: hashTableToken(otherToken) },
     );
     assert.equal(first.requestHash, same.requestHash);
@@ -280,8 +281,8 @@ describe("normalized dine-in order domain", () => {
       customerName: request.customerName,
       tableToken: request.tableToken,
     };
-    const first = prepareDineInOrder(request, token(), makeCatalog(), createTrustedTndCatalogReadiness(17), contextFor(request.tableToken));
-    const second = prepareDineInOrder(reordered, token(), makeCatalog(), createTrustedTndCatalogReadiness(17), contextFor(request.tableToken));
+    const first = prepareDineInOrder(request, token(), makeCatalog(), createTrustedCatalogReadiness(17), contextFor(request.tableToken));
+    const second = prepareDineInOrder(reordered, token(), makeCatalog(), createTrustedCatalogReadiness(17), contextFor(request.tableToken));
     assert.equal(first.requestHash, second.requestHash);
   });
 
@@ -295,15 +296,15 @@ describe("normalized dine-in order domain", () => {
     changed.items[0].options[0].price += 100;
     changed.items[0].options[0].label.en = "Renamed option";
     const first = prepareDineInOrder(
-      request, token(), original, createTrustedTndCatalogReadiness(original.revision), contextFor(request.tableToken),
+      request, token(), original, createTrustedCatalogReadiness(original.revision), contextFor(request.tableToken),
     );
     const second = prepareDineInOrder(
-      request, token(), changed, createTrustedTndCatalogReadiness(changed.revision), contextFor(request.tableToken),
+      request, token(), changed, createTrustedCatalogReadiness(changed.revision), contextFor(request.tableToken),
     );
     assert.equal(first.requestHash, second.requestHash);
   });
 
-  it("rejects client-authoritative prices, names, totals, currency, and review fields", () => {
+  it("rejects client-authoritative prices, names, totals, currency codes, and review fields", () => {
     const catalog = makeCatalog();
     const line = { productId: catalog.items[0].id, quantity: 1, optionIds: [] };
     for (const request of [

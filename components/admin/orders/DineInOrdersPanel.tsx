@@ -115,37 +115,37 @@ export default function DineInOrdersPanel({ signedIn }: { signedIn: boolean }) {
               className={`admin-order admin-dine-order${order.status === "pending" ? " admin-dine-order-pending" : ""}`}
               key={order.orderId}
             >
-              <div className="admin-dine-order-heading">
-                <div>
-                  <SheetTrigger asChild>
-                    <button
-                      type="button"
-                      className="admin-dine-order-open"
-                      aria-label={t.dineInOrderOpen(t.dineInTable(order.tableLabel), order.customerName?.trim() || t.dineInGuest)}
-                      onClick={() => setSelectedOrderId(order.orderId)}
-                    >
-                      {t.dineInTable(order.tableLabel)}
-                    </button>
-                  </SheetTrigger>
-                  <span>{order.customerName?.trim() || t.dineInGuest}</span>
-                </div>
-                <div className="admin-order-total">
-                  <div className="admin-dine-order-badges">
-                    <span className={`admin-dine-order-status ${order.status}`}>
-                      {order.status === "pending" && <span aria-hidden="true">● </span>}
-                      {t.dineInStatus[order.status]}
-                    </span>
-                    {isNew && <span className="admin-dine-order-new" role="status">{t.dineInOrderNew}</span>}
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="admin-dine-order-open"
+                  aria-label={t.dineInOrderOpen(t.dineInTable(order.tableLabel), order.customerName?.trim() || t.dineInGuest)}
+                  onClick={() => setSelectedOrderId(order.orderId)}
+                >
+                  <div className="admin-dine-order-heading">
+                    <div>
+                      <span>{t.dineInTable(order.tableLabel)}</span>
+                      <span>{order.customerName?.trim() || t.dineInGuest}</span>
+                    </div>
+                    <div className="admin-order-total">
+                      <div className="admin-dine-order-badges">
+                        <span className={`admin-dine-order-status ${order.status}`}>
+                          {order.status === "pending" && <span aria-hidden="true">● </span>}
+                          {t.dineInStatus[order.status]}
+                        </span>
+                        {isNew && <span className="admin-dine-order-new" role="status">{t.dineInOrderNew}</span>}
+                      </div>
+                      <strong>{formatDineInTotal(order.totalMillimes, language)}</strong>
+                      <time dateTime={createdAt.toISOString()}>
+                        {new Intl.DateTimeFormat(locale, {
+                          weekday: "short", day: "numeric", month: "short",
+                          hour: "2-digit", minute: "2-digit",
+                        }).format(createdAt)}
+                      </time>
+                    </div>
                   </div>
-                  <strong>{formatDineInTotal(order.totalMillimes, language)}</strong>
-                  <time dateTime={createdAt.toISOString()}>
-                    {new Intl.DateTimeFormat(locale, {
-                      weekday: "short", day: "numeric", month: "short",
-                      hour: "2-digit", minute: "2-digit",
-                    }).format(createdAt)}
-                  </time>
-                </div>
-              </div>
+                </button>
+              </SheetTrigger>
             </li>
           );
         })}

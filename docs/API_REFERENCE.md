@@ -7,8 +7,8 @@ Route handlers live under app/api/. JSON responses use a generic { "error": "...
 ### GET /api/catalog
 
 - Returns The Hood's singleton catalog. Legacy `shop` query parameters are ignored and never select data.
-- 200: The Hood's saved singleton catalog, or a blank TND catalog with no categories/dishes when initial setup has not saved a row yet.
-- 503: database or other infrastructure error.
+- 200: The Hood's saved singleton catalog, or a blank catalog with no categories/dishes when initial setup has not saved a row yet. Catalog payloads contain no currency field.
+- 422: the saved catalog is invalid. 503: database or other infrastructure error.
 
 ### POST /api/orders
 
@@ -16,13 +16,13 @@ This legacy creation endpoint is retired and always returns 410. It does not par
 
 ### POST /api/dine-in/orders
 
-Creates a normalized dine-in order from the saved, reviewed TND catalog. The registered-table customer checkout calls this endpoint, but order intake remains disabled by default. Requests must be same-origin JSON over HTTPS in production and are rate-limited per client IP.
+Creates a normalized dine-in order from the saved, reviewed catalog. The registered-table customer checkout calls this endpoint, but order intake remains disabled by default. Requests must be same-origin JSON over HTTPS in production and are rate-limited per client IP.
 
 The server-only environment variable `DINE_IN_ORDER_INTAKE_ENABLED` must equal the exact lowercase string `true` to enable intake. Missing, `false`, differently capitalized, whitespace-padded, or any other value leaves intake disabled. While disabled, the endpoint returns HTTP 503 with a generic temporary-unavailability response before parsing the request, rate limiting, or calling order persistence. The setting is never read from request data. Keep it absent or set to `false` until both customer checkout and staff order management are ready. Enabling it does not by itself establish production readiness.
 
 Order intake remains disabled by default. The development-only browser checkout harness uses synthetic data and a mocked transport; it does not connect to this route's persistence service or change the intake setting.
 
-Required header: `Idempotency-Key`, a canonical unpadded Base64URL encoding of 32 random bytes. The body accepts only `tableToken`, optional `customerName`/`notes`, and `items` containing `productId`, `quantity`, and `optionIds`. Prices, names, currency, table identity, totals, status, catalog revision, and review state are rejected by the domain validator.
+Required header: `Idempotency-Key`, a canonical unpadded Base64URL encoding of 32 random bytes. The body accepts only `tableToken`, optional `customerName`/`notes`, and `items` containing `productId`, `quantity`, and `optionIds`. Prices, names, currency codes, table identity, totals, status, catalog revision, and review state are rejected by the domain validator.
 
 Success returns `{ "orderId": "…", "trackingToken": "…", "status": "pending", "createdAt": 0 }`. `orderId` is the random UUID order reference; the tracking token remains the separate customer capability. A new order returns 201; a matching retry returns 200 with the same order reference, tracking token, status, and order timestamp. Reusing a key for different canonical order contents returns 409 with code `idempotency_conflict`; an unready or changed catalog returns 409 with code `catalog_not_ready` or `catalog_not_reviewed`. The raw idempotency key is never stored. Keep the key stable while retrying an uncertain request; a new key means a distinct order is allowed. The tracking token is returned in this response and encrypted for server-side retry recovery. After acknowledgment, the browser saves the order reference and token in localStorage for same-profile recovery; tracking links place the token in the URL fragment, which is not sent in HTTP requests. Do not log either token or forward it to analytics. Browser storage can be cleared or unavailable; cross-device recovery is unsupported without the private tracking link.
 
@@ -63,6 +63,8 @@ Requires same origin, deletes the current session when one is present, and clear
 
 Requires the singleton administrator session. Returns The Hood's stored catalog or an empty setup catalog when no catalog has been saved.
 
+- 422: the saved catalog is invalid. 503: database or other infrastructure error.
+
 ### PUT /api/admin/catalog
 
 Requires the singleton administrator session, same origin, and a valid catalog JSON body. The database compares the submitted revision with the stored revision and increments it on success.
@@ -76,11 +78,11 @@ Requires the singleton administrator session, same origin, and a valid catalog J
 
 ### GET /api/admin/catalog/review
 
-Requires the singleton administrator session. Returns the saved catalog revision and its nullable TND reviewed revision/timestamp; an uninitialized catalog returns revision 0 with both review fields null.
+Requires the singleton administrator session. Returns the saved catalog revision and its nullable price-reviewed revision/timestamp; an uninitialized catalog returns revision 0 with both review fields null.
 
 ### POST /api/admin/catalog/review
 
-Requires the singleton administrator session, same origin, and JSON `{ "expectedRevision": 7 }`. The server validates the saved catalog as TND and records the authenticated administrator's confirmation against that exact revision. Review timestamps and audit events are generated server-side; client review flags or timestamps are not accepted. A stale revision returns 409, a malformed request returns 400, and a non-TND or invalid catalog returns 422. Any later successful catalog save increments its revision and clears both review fields atomically.
+Requires the singleton administrator session, same origin, and JSON `{ "expectedRevision": 7 }`. The server validates the saved catalog and records the authenticated administrator's confirmation against that exact revision. Review timestamps and audit events are generated server-side; client review flags or timestamps are not accepted. A stale revision returns 409, a malformed request returns 400, and an invalid catalog returns 422. Any later successful catalog save increments its revision and clears both review fields atomically.
 
 ### GET /api/admin/orders
 
@@ -116,7 +118,7 @@ Orders are sorted newest first by `created_at DESC, id DESC`. The cursor preserv
 }
 ```
 
-`createdAt` is the exact stored epoch-millisecond BIGINT encoded as a decimal string. `totalMillimes` is an integer TND millime amount; the API does not convert it to floating-point currency. A null `nextCursor` means the page is the last page. Responses are non-cacheable. Errors use the shared `{ "error": "..." }` response: 400 for invalid query input, 401 without a valid administrator session, and generic 503 for unexpected database or infrastructure failures.
+`createdAt` is the exact stored epoch-millisecond BIGINT encoded as a decimal string. `totalMillimes` is a safe integer amount at scale 1,000; the API does not convert it to floating point or include a currency code. A null `nextCursor` means the page is the last page. Responses are non-cacheable. Errors use the shared `{ "error": "..." }` response: 400 for invalid query input, 401 without a valid administrator session, and generic 503 for unexpected database or infrastructure failures.
 
 ### GET /api/admin/dine-in/orders/[id]
 
@@ -132,7 +134,6 @@ Requires the singleton administrator session. The `id` path parameter must be a 
   "customerName": "Guest",
   "customerNotes": "No onions",
   "tableLabel": "Patio 1",
-  "currency": "TND",
   "subtotalMillimes": 2001700,
   "totalMillimes": 2001700,
   "items": [
@@ -150,7 +151,7 @@ Requires the singleton administrator session. The `id` path parameter must be a 
 }
 ```
 
-The item names, prices, and option selections come from the immutable order snapshots, not the current catalog. `createdAt` is the exact stored BIGINT epoch-millisecond value as decimal text. Millime amounts are JSON integers only after validation against the database's supported safe-integer range; no floating-point TND conversion is performed. The response omits database item IDs, product lookup data, tracking tokens and hashes, idempotency hashes, and tracking-recovery fields.
+The item names, prices, and option selections come from the immutable order snapshots, not the current catalog. `createdAt` is the exact stored BIGINT epoch-millisecond value as decimal text. Amounts are JSON integers at scale 1,000, validated against the database's supported safe-integer range; no floating-point conversion or currency code is used. The response omits database item IDs, product lookup data, tracking tokens and hashes, idempotency hashes, and tracking-recovery fields.
 
 ### PATCH /api/admin/dine-in/orders/[id]
 

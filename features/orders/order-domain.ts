@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { hashTableToken } from "../../lib/table-operations";
-import { validateTndCatalog, CatalogValidationError } from "../../lib/catalog-validation";
+import { validateCatalog, CatalogValidationError } from "../../lib/catalog-validation";
 import { pickText } from "../../lib/text";
 import type { Catalog } from "../../lib/types";
 import { hashIdempotencyKey } from "./crypto";
@@ -48,14 +48,14 @@ export interface CanonicalDineInOrderRequest {
 }
 
 /** Must come from a trusted server-side review record, never the request body. */
-const trustedReadinessBrand: unique symbol = Symbol("trustedTndCatalogReadiness");
+const trustedReadinessBrand: unique symbol = Symbol("trustedCatalogReadiness");
 
 /**
  * Marker for readiness obtained by a trusted server-side caller. This module
  * is server-only; the future persistence service must read both review fields
  * from PostgreSQL and match the reviewed revision to the catalog revision.
  */
-export interface TrustedTndCatalogReadiness {
+export interface TrustedCatalogReadiness {
   readonly reviewedRevision: number;
   readonly [trustedReadinessBrand]: true;
 }
@@ -65,13 +65,13 @@ export interface TrustedTndCatalogReadiness {
  * revision copied from a customer request; the future persistence/service
  * layer is responsible for obtaining this value from the database.
  */
-export function createTrustedTndCatalogReadiness(
+export function createTrustedCatalogReadiness(
   reviewedRevision: number,
-): TrustedTndCatalogReadiness {
+): TrustedCatalogReadiness {
   if (!Number.isSafeInteger(reviewedRevision) || reviewedRevision < 0)
     throw new DineInOrderDomainError(
       "catalog_not_reviewed",
-      "The current catalog revision has not been reviewed for TND ordering.",
+      "The current catalog revision has not been reviewed for ordering.",
     );
   return Object.freeze({ reviewedRevision, [trustedReadinessBrand]: true as const });
 }
@@ -104,7 +104,6 @@ export interface DineInOrderSnapshot {
   readonly tableId: string;
   readonly tableLabelSnapshot: string;
   readonly status: "pending";
-  readonly currency: "TND";
   readonly subtotalMillimes: number;
   readonly totalMillimes: number;
   readonly customerName: string | null;
@@ -309,7 +308,7 @@ export function prepareDineInOrder(
   requestValue: unknown,
   idempotencyKey: unknown,
   catalogValue: unknown,
-  readiness: TrustedTndCatalogReadiness | null | undefined,
+  readiness: TrustedCatalogReadiness | null | undefined,
   resolvedTable: ResolvedDineInTable,
 ): PreparedDineInOrder {
   const identifiedRequest = identifyDineInOrderRequest(requestValue, idempotencyKey);
@@ -318,10 +317,10 @@ export function prepareDineInOrder(
 
   let catalog: Catalog;
   try {
-    catalog = validateTndCatalog(catalogValue);
+    catalog = validateCatalog(catalogValue);
   } catch (error) {
     if (error instanceof CatalogValidationError)
-      throw new DineInOrderDomainError("catalog_not_ready", "The saved catalog is not ready for TND ordering.");
+      throw new DineInOrderDomainError("catalog_not_ready", "The saved catalog is not ready for ordering.");
     throw error;
   }
   if (
@@ -332,7 +331,7 @@ export function prepareDineInOrder(
   )
     throw new DineInOrderDomainError(
       "catalog_not_reviewed",
-      "The current catalog revision has not been reviewed for TND ordering.",
+      "The current catalog revision has not been reviewed for ordering.",
     );
 
   const itemSnapshots: DineInOrderItemSnapshot[] = [];
@@ -381,7 +380,6 @@ export function prepareDineInOrder(
       tableId: table.id,
       tableLabelSnapshot: table.label,
       status: "pending",
-      currency: "TND",
       subtotalMillimes,
       totalMillimes: subtotalMillimes,
       customerName: canonicalRequest.customerName,

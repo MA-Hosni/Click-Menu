@@ -199,7 +199,6 @@ export default function MenuSection({
             <MenuItemCard
               key={item.id}
               item={item}
-              currency={catalog.settings.currency}
               language={language}
               headingLevel={menuOnly ? "h2" : "h3"}
               index={index}
@@ -219,7 +218,6 @@ export default function MenuSection({
       </p>
       <MenuItemDetails
         item={selected}
-        currency={catalog.settings.currency}
         language={language}
         options={options}
         quantity={quantity}

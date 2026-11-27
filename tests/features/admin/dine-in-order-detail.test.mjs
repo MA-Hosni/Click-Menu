@@ -26,7 +26,6 @@ function detail(overrides = {}) {
     customerName: "Guest",
     customerNotes: "No onions",
     tableLabel: "Patio 1",
-    currency: "TND",
     subtotalMillimes: 2700,
     totalMillimes: 2700,
     items: [
@@ -86,14 +85,13 @@ describe("normalized dine-in order detail", () => {
     assert.deepEqual(parsed.items[0].options, [
       { id: "cheese", name: "Extra cheese", priceAdjustmentMillimes: 100 },
     ]);
-    assert.equal(parsed.currency, "TND");
   });
 
   it("rejects malformed snapshots, totals, timestamps, and sensitive extra fields", () => {
     const invalidDetails = [
       detail({ trackingToken: "should-not-render" }),
       detail({ status: "new" }),
-      detail({ currency: "EUR" }),
+      detail({ currency: "TND" }),
       detail({ createdAt: "9007199254740992" }),
       detail({ totalMillimes: Number.MAX_SAFE_INTEGER + 1 }),
       detail({ items: [detail().items[1], detail().items[0]] }),
@@ -221,6 +219,41 @@ describe("normalized dine-in order detail", () => {
     });
     assert.equal(controller.getSnapshot().detail.status, "confirmed");
     assert.equal(controller.getSnapshot().statusUpdated, true);
+  });
+
+  it("manages an order through confirmation, preparation, and completion", async () => {
+    const transitions = ["confirmed", "preparing", "completed"];
+    let persistedStatus = "pending";
+    const controller = createDineInOrderDetailController(async (_url, options) => {
+      if (options?.method === "PATCH") {
+        persistedStatus = JSON.parse(options.body).status;
+        return response({ orderId, status: persistedStatus });
+      }
+      return response(detail({ status: persistedStatus }));
+    });
+
+    await controller.open(orderId);
+    const opened = controller.getSnapshot().detail;
+    assert.equal(opened.customerName, "Guest");
+    assert.equal(opened.customerNotes, "No onions");
+    assert.equal(opened.tableLabel, "Patio 1");
+    assert.equal(opened.totalMillimes, 2700);
+    assert.deepEqual(opened.items.map((item) => ({
+      productName: item.productName,
+      quantity: item.quantity,
+      options: item.options,
+    })), [
+      { productName: "Historical sandwich", quantity: 2, options: [{ id: "cheese", name: "Extra cheese", priceAdjustmentMillimes: 100 }] },
+      { productName: "Historical juice", quantity: 1, options: [] },
+    ]);
+
+    for (const status of transitions) {
+      assert.ok(getDineInOrderStatusActions(controller.getSnapshot().detail.status).includes(status));
+      assert.equal(await controller.updateStatus(status), null);
+      assert.equal(controller.getSnapshot().detail.status, status);
+      assert.equal(persistedStatus, status);
+    }
+    assert.deepEqual(getDineInOrderStatusActions(controller.getSnapshot().detail.status), []);
   });
 
   it("rejects malformed success bodies without changing the saved status", async () => {

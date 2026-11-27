@@ -31,15 +31,15 @@ This guide points to current entry points and domain modules. Only App Router sp
 - app/api/ contains route handlers. Public customer handlers include catalog and orders; protected administrator handlers live under admin.
 - lib/cart.ts contains cart calculations and checkout/order-message rules.
 - lib/orders.ts validates customer submissions against the saved menu and computes trusted prices.
-- lib/catalog-validation.ts validates singleton TND catalog payloads.
+- lib/catalog-validation.ts validates currency-free singleton catalog payloads and integer prices.
 - lib/catalog-store.ts performs catalog reads and revision-checked writes.
 - lib/order-store.ts persists order records.
 - features/admin/auth/ contains password verification. `scripts/admin-password.mjs` initializes or resets the singleton credential from a hidden terminal prompt. lib/auth.ts owns hashed session-cookie utilities; lib/auth-store.ts and lib/rate-limit-store.ts adapt authentication and rate limits to PostgreSQL.
 - `lib/legacy-restaurant-key.ts` contains the server-only temporary partition key used only by the legacy order store; remove it in the order persistence phase.
 - lib/image-store.ts stores menu image metadata in PostgreSQL and bytes in private S3-compatible storage; app/api/images/[id]/route.ts retrieves and serves image bytes.
 - lib/table-operations.ts validates and hashes public table tokens; lib/table-store.ts resolves only active tables and persists table records. Admin table APIs require the existing administrator session. Rotation recovery encrypts the most recent token using the server-only TABLE_QR_RECOVERY_KEY.
-- `scripts/migrate-menu-images-to-s3.mjs` verifies legacy base64 images and deterministic private S3 objects before migration 0004 removes their database payloads. Migration 0005 initializes atomic image capacity enforcement.
-- db/schema.ts defines tables; drizzle/ contains SQL migrations.
+- `scripts/migrate-menu-images-to-s3.mjs` verifies legacy base64 images and deterministic private S3 objects for an older database; the clean initial schema does not migrate legacy image bytes.
+- db/schema.ts defines tables; drizzle/0000_init.sql is the generated schema for a clean database, with Drizzle metadata in drizzle/meta/.
 
 ## Shared styling and utilities
 

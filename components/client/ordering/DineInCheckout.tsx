@@ -133,7 +133,7 @@ export default function DineInCheckout({
                 <div className="cart-line-title">
                   <h3>{line.item ? pickText(line.item.name, language) : line.entry.itemId}</h3>
                   {line.lineTotalMillimes !== null && !checkout.pending &&
-                    <strong>{formatPrice(line.lineTotalMillimes, language, "TND")}</strong>}
+                    <strong>{formatPrice(line.lineTotalMillimes, language)} TND</strong>}
                 </div>
                 {line.options.length > 0 && <p>{line.options.map((option) => pickText(option.label, language)).join(", ")}</p>}
                 {line.issue && <p className="dine-line-error" role="alert">{line.issue === "unavailable" ? t.dineItemUnavailable : line.issue === "invalid-options" ? t.dineOptionsInvalid : line.issue === "invalid-quantity" ? t.dineQuantityInvalid : t.dinePriceInvalid}</p>}
@@ -150,8 +150,8 @@ export default function DineInCheckout({
           ))}
           {totals.valid && totals.subtotalMillimes !== null && !checkout.pending && (
             <div className="order-totals">
-              <p><span>{t.subtotal}</span><span>{formatPrice(totals.subtotalMillimes, language, "TND")}</span></p>
-              <p className="grand-total"><span>{t.total}</span><span>{formatPrice(totals.subtotalMillimes, language, "TND")}</span></p>
+              <p><span>{t.subtotal}</span><span>{formatPrice(totals.subtotalMillimes, language)} TND</span></p>
+              <p className="grand-total"><span>{t.total}</span><span>{formatPrice(totals.subtotalMillimes, language)} TND</span></p>
             </div>
           )}
           {!totals.valid && !checkout.pending && <p role="alert" className="dine-line-error">{t.dineCartInvalid}</p>}

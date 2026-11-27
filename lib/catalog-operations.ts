@@ -5,15 +5,15 @@ import { ApiError } from "./api-security";
 import {
   CatalogValidationError,
   upgradeStoredCatalog,
-  validateTndCatalog,
+  validateCatalog,
 } from "./catalog-validation";
 import type { Catalog } from "./types";
 
 export type StoredCatalog = {
   payload: string;
   revision: number;
-  tndReviewedRevision?: number | null;
-  tndReviewedAt?: number | null;
+  priceReviewedRevision?: number | null;
+  priceReviewedAt?: number | null;
 };
 
 export interface CatalogReviewState {
@@ -41,15 +41,21 @@ export interface CatalogPersistence {
 }
 
 function toCatalog(row: StoredCatalog): Catalog {
-  const catalog = upgradeStoredCatalog(JSON.parse(row.payload)) as Catalog;
-  return validateTndCatalog({ ...catalog, revision: row.revision });
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(row.payload);
+  } catch {
+    throw new CatalogValidationError("The saved catalog is not valid JSON.");
+  }
+  const catalog = upgradeStoredCatalog(parsed) as Catalog;
+  return validateCatalog({ ...catalog, revision: row.revision });
 }
 
 function reviewState(row: StoredCatalog | null): CatalogReviewState {
   return {
     revision: row?.revision ?? 0,
-    reviewedRevision: row?.tndReviewedRevision ?? null,
-    reviewedAt: row?.tndReviewedAt ?? null,
+    reviewedRevision: row?.priceReviewedRevision ?? null,
+    reviewedAt: row?.priceReviewedAt ?? null,
   };
 }
 
@@ -57,7 +63,14 @@ export function createCatalogOperations(persistence: CatalogPersistence) {
   return {
     async read(): Promise<Catalog | null> {
       const row = await persistence.read();
-      return row ? toCatalog(row) : null;
+      if (!row) return null;
+      try {
+        return toCatalog(row);
+      } catch (error) {
+        if (error instanceof CatalogValidationError)
+          throw new ApiError(error.message, 422);
+        throw error;
+      }
     },
 
     async readReviewState(): Promise<CatalogReviewState> {
@@ -77,7 +90,7 @@ export function createCatalogOperations(persistence: CatalogPersistence) {
         throw new ApiError("The saved menu changed. Reload it before reviewing prices.", 409);
 
       try {
-        validateTndCatalog(toCatalog(row));
+        validateCatalog(toCatalog(row));
       } catch (error) {
         if (error instanceof CatalogValidationError)
           throw new ApiError(error.message, 422);
@@ -103,7 +116,7 @@ export function createCatalogOperations(persistence: CatalogPersistence) {
     },
 
     async save(catalog: Catalog): Promise<Catalog> {
-      validateTndCatalog(catalog);
+      validateCatalog(catalog);
       const next = { ...catalog, revision: catalog.revision + 1 };
       const payload = JSON.stringify(next);
       const updatedAt = Date.now();

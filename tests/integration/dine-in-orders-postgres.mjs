@@ -85,33 +85,9 @@ async function countOrders(where = "TRUE") {
 async function runMigrations() {
   const client = await pool.connect();
   try {
-    await client.query(`
-      CREATE TABLE restaurant_catalogs (
-        id integer PRIMARY KEY,
-        payload text NOT NULL,
-        revision integer NOT NULL,
-        updated_at bigint NOT NULL
-      );
-      CREATE TABLE restaurant_tables (
-        id text PRIMARY KEY,
-        label text NOT NULL,
-        qr_token_hash text NOT NULL UNIQUE,
-        is_active boolean NOT NULL DEFAULT true,
-        created_at bigint NOT NULL,
-        updated_at bigint NOT NULL
-      );
-    `);
-
-    for (const number of ["0009", "0010", "0011", "0012"]) {
-      const migration = readFileSync(path.join(root, "drizzle", `${number}_${{
-        "0009": "normalized_dine_in_orders",
-        "0010": "order_idempotency_and_history",
-        "0011": "order_tracking_recovery",
-        "0012": "tnd_catalog_price_review",
-      }[number]}.sql`), "utf8");
-      const statements = migration.split(/^--> statement-breakpoint\s*$/m).map((part) => part.trim()).filter(Boolean);
-      for (const statement of statements) await client.query(statement);
-    }
+    const migration = readFileSync(path.join(root, "drizzle", "0000_init.sql"), "utf8");
+    const statements = migration.split(/^--> statement-breakpoint\s*$/m).map((part) => part.trim()).filter(Boolean);
+    for (const statement of statements) await client.query(statement);
   } finally {
     client.release();
   }
@@ -159,7 +135,7 @@ async function postOrder(api, body, idempotencyKey) {
 
 async function seed(catalog, token) {
   await pool.query(
-    "INSERT INTO restaurant_catalogs (id, payload, revision, updated_at, tnd_reviewed_revision, tnd_reviewed_at) VALUES (1, $1, 1, 1700000000000, 1, 1700000000000)",
+    "INSERT INTO restaurant_catalogs (id, payload, revision, updated_at, price_reviewed_revision, price_reviewed_at) VALUES (1, $1, 1, 1700000000000, 1, 1700000000000)",
     [JSON.stringify(catalog)],
   );
   await pool.query(
@@ -213,7 +189,7 @@ try {
     SELECT to_regclass('dine_in_orders') AS orders, to_regclass('dine_in_order_items') AS items
   `);
   assert.ok(migrationTables.rows[0].orders && migrationTables.rows[0].items);
-  pass("actual migrations 0009–0012 applied to the disposable database after minimal prerequisites");
+  pass("complete initial schema migration applied to the disposable database");
 
   const transactionRunner = createTransactionRunner({
     acquire: () => pool.connect(),
@@ -273,7 +249,7 @@ try {
   changedCatalog.revision = 2;
   changedCatalog.items[0].price += 300;
   await pool.query(
-    "UPDATE restaurant_catalogs SET payload=$1, revision=2, tnd_reviewed_revision=NULL, tnd_reviewed_at=NULL WHERE id=1",
+    "UPDATE restaurant_catalogs SET payload=$1, revision=2, price_reviewed_revision=NULL, price_reviewed_at=NULL WHERE id=1",
     [JSON.stringify(changedCatalog)],
   );
   const replay = await service.submit(request, replayKey);
@@ -284,7 +260,7 @@ try {
   pass("matching retry returns the original order after QR rotation/deactivation and catalog revision change");
 
   await pool.query("UPDATE restaurant_tables SET qr_token_hash=$1, is_active=true WHERE id='table-1'", [originalHash]);
-  await pool.query("UPDATE restaurant_catalogs SET payload=$1, revision=1, tnd_reviewed_revision=1, tnd_reviewed_at=1700000000000 WHERE id=1", [JSON.stringify(catalog)]);
+  await pool.query("UPDATE restaurant_catalogs SET payload=$1, revision=1, price_reviewed_revision=1, price_reviewed_at=1700000000000 WHERE id=1", [JSON.stringify(catalog)]);
 
   const uncertainKey = randomBytes(32).toString("base64url");
   const uncertainFirst = await service.submit(request, uncertainKey);
@@ -434,7 +410,7 @@ try {
     await holderGate.opened;
     const marker = `order_lock_wait_${resource}_${randomUUID().replaceAll("-", "")}`;
     const updateSql = resource === "catalog"
-      ? `UPDATE restaurant_catalogs SET revision=revision+1, tnd_reviewed_revision=NULL, tnd_reviewed_at=NULL WHERE id=1 /* ${marker} */`
+      ? `UPDATE restaurant_catalogs SET revision=revision+1, price_reviewed_revision=NULL, price_reviewed_at=NULL WHERE id=1 /* ${marker} */`
       : `UPDATE restaurant_tables SET is_active=false WHERE id='table-1' /* ${marker} */`;
     const updater = pool.query(updateSql);
     try {
@@ -450,7 +426,7 @@ try {
     }
     await Promise.all([heldTransaction, updater]);
     if (resource === "catalog") {
-      await pool.query("UPDATE restaurant_catalogs SET payload=$1, revision=1, tnd_reviewed_revision=1, tnd_reviewed_at=1700000000000 WHERE id=1", [JSON.stringify(catalog)]);
+      await pool.query("UPDATE restaurant_catalogs SET payload=$1, revision=1, price_reviewed_revision=1, price_reviewed_at=1700000000000 WHERE id=1", [JSON.stringify(catalog)]);
     } else {
       await pool.query("UPDATE restaurant_tables SET is_active=true WHERE id='table-1'");
     }
@@ -465,10 +441,10 @@ try {
   pass("a committed QR rotation is observed and stale-token order creation is rejected");
 
   const updateFirstCatalogKey = randomBytes(32).toString("base64url");
-  await pool.query("UPDATE restaurant_catalogs SET revision=2, tnd_reviewed_revision=NULL, tnd_reviewed_at=NULL WHERE id=1");
+  await pool.query("UPDATE restaurant_catalogs SET revision=2, price_reviewed_revision=NULL, price_reviewed_at=NULL WHERE id=1");
   await assert.rejects(service.submit(request, updateFirstCatalogKey), { code: "catalog_not_reviewed" });
   await assertOrderAbsent(updateFirstCatalogKey, "An edit committed first must invalidate review before order creation.");
-  await pool.query("UPDATE restaurant_catalogs SET payload=$1, revision=1, tnd_reviewed_revision=1, tnd_reviewed_at=1700000000000 WHERE id=1", [JSON.stringify(catalog)]);
+  await pool.query("UPDATE restaurant_catalogs SET payload=$1, revision=1, price_reviewed_revision=1, price_reviewed_at=1700000000000 WHERE id=1", [JSON.stringify(catalog)]);
   pass("a committed catalog revision/review change is observed and rejected");
 
   const orderApi = makeOrderApi(service);
@@ -532,7 +508,7 @@ try {
   unavailableCatalog.revision = 2;
   unavailableCatalog.items[0].available = false;
   await pool.query(
-    "UPDATE restaurant_catalogs SET payload=$1, revision=2, tnd_reviewed_revision=2, tnd_reviewed_at=1700000000001 WHERE id=1",
+    "UPDATE restaurant_catalogs SET payload=$1, revision=2, price_reviewed_revision=2, price_reviewed_at=1700000000001 WHERE id=1",
     [JSON.stringify(unavailableCatalog)],
   );
   const unavailableKey = randomBytes(32).toString("base64url");
@@ -544,7 +520,7 @@ try {
   emptyCatalog.revision = 3;
   emptyCatalog.items = [];
   await pool.query(
-    "UPDATE restaurant_catalogs SET payload=$1, revision=3, tnd_reviewed_revision=3, tnd_reviewed_at=1700000000002 WHERE id=1",
+    "UPDATE restaurant_catalogs SET payload=$1, revision=3, price_reviewed_revision=3, price_reviewed_at=1700000000002 WHERE id=1",
     [JSON.stringify(emptyCatalog)],
   );
   const emptyCatalogKey = randomBytes(32).toString("base64url");
@@ -552,7 +528,7 @@ try {
   assert.equal(emptyCatalogResponse.status, 400);
   await assertOrderAbsent(emptyCatalogKey, "An empty catalog cannot produce an order.");
   await pool.query(
-    "UPDATE restaurant_catalogs SET payload=$1, revision=1, tnd_reviewed_revision=1, tnd_reviewed_at=1700000000000 WHERE id=1",
+    "UPDATE restaurant_catalogs SET payload=$1, revision=1, price_reviewed_revision=1, price_reviewed_at=1700000000000 WHERE id=1",
     [JSON.stringify(catalog)],
   );
   pass("reviewed but unavailable or empty catalogs cannot accept new orders");
@@ -562,7 +538,7 @@ try {
   assert.equal(trustedPriceResponse.status, 201);
   const trustedPriceReceipt = await trustedPriceResponse.json();
   const trustedPriceRows = await pool.query(`
-    SELECT o.currency, o.subtotal_millimes::text, o.total_millimes::text,
+    SELECT o.subtotal_millimes::text, o.total_millimes::text,
       i.quantity, i.unit_price_millimes::text, i.line_subtotal_millimes::text,
       i.product_name_snapshot
     FROM dine_in_orders o
@@ -570,7 +546,6 @@ try {
     WHERE o.idempotency_key_hash=$1
   `, [hashIdempotencyKey(trustedPriceKey)]);
   assert.equal(trustedPriceRows.rowCount, 1);
-  assert.equal(trustedPriceRows.rows[0].currency, "TND");
   assert.equal(trustedPriceRows.rows[0].quantity, 1);
   assert.equal(trustedPriceRows.rows[0].unit_price_millimes, "15000");
   assert.equal(trustedPriceRows.rows[0].line_subtotal_millimes, "15000");
@@ -690,9 +665,9 @@ try {
     await pool.query(`
       INSERT INTO dine_in_orders (
         id, tracking_token_hash, request_hash, idempotency_key_hash, table_id,
-        table_label_snapshot, status, currency, subtotal_millimes, total_millimes,
+        table_label_snapshot, status, subtotal_millimes, total_millimes,
         customer_name, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4,'table-1','History fixture',$5,'TND',1234,1234,'Fixture guest',$6::bigint,$6::bigint)
+      ) VALUES ($1,$2,$3,$4,'table-1','History fixture',$5,1234,1234,'Fixture guest',$6::bigint,$6::bigint)
     `, [id, digest, String(9 - index).repeat(64), String(5 + index).repeat(64), index === 2 ? "preparing" : "pending", listingTime]);
   }
 
@@ -721,9 +696,9 @@ try {
   await pool.query(`
     INSERT INTO dine_in_orders (
       id, tracking_token_hash, request_hash, idempotency_key_hash, table_id,
-      table_label_snapshot, status, currency, subtotal_millimes, total_millimes,
+      table_label_snapshot, status, subtotal_millimes, total_millimes,
       customer_name, customer_notes, created_at, updated_at
-    ) VALUES ($1,$2,$3,$4,'table-1','Historical table','confirmed','TND',$5::bigint,$5::bigint,
+    ) VALUES ($1,$2,$3,$4,'table-1','Historical table','confirmed',$5::bigint,$5::bigint,
       'Snapshot guest','Historical note',1700000000000,1700000000000)
   `, [detailOrderId, ...detailDigests, exactSubtotal]);
   await pool.query(`
@@ -744,7 +719,7 @@ try {
   assert.deepEqual(detail.items[0].options, [{ id: "extra-cheese", name: "Old cheese option", priceAdjustmentMillimes: 100 }]);
   assert.deepEqual(Object.keys(detail).sort(), [
     "orderId", "createdAt", "status", "customerName", "customerNotes", "tableLabel",
-    "currency", "subtotalMillimes", "totalMillimes", "items",
+    "subtotalMillimes", "totalMillimes", "items",
   ].sort());
   assert.equal(JSON.stringify(detail).includes(detailDigests[0]), false);
   pass("production detail query returns historical item/options snapshots in line order with exact safe millimes and no hashes");

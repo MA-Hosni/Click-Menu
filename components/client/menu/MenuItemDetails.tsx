@@ -1,7 +1,7 @@
 "use client";
 
 import { Minus, Plus, X } from "lucide-react";
-import type { Currency, Language, MenuItem } from "../../../lib/types";
+import type { Language, MenuItem } from "../../../lib/types";
 import { formatPrice } from "../../../lib/cart";
 import { pickText } from "../../../lib/text";
 import { copy } from "../../../features/storefront/i18n/copy";
@@ -10,7 +10,6 @@ import Photo from "../shared/Photo";
 
 export default function MenuItemDetails({
   item,
-  currency,
   language,
   options,
   quantity,
@@ -21,7 +20,6 @@ export default function MenuItemDetails({
   orderingEnabled = true,
 }: {
   item: MenuItem | null;
-  currency: Currency;
   language: Language;
   options: string[];
   quantity: number;
@@ -54,7 +52,7 @@ export default function MenuItemDetails({
           <div className="item-modal-body">
             <div className="modal-title-row">
               <h2>{pickText(item.name, language)}</h2>
-              <strong>{formatPrice(item.price, language, currency)}</strong>
+              <strong>{formatPrice(item.price, language)} TND</strong>
             </div>
             <p>{pickText(item.description, language)}</p>
             {orderingEnabled && item.options.length > 0 && (
@@ -74,7 +72,7 @@ export default function MenuItemDetails({
                       }
                     />
                     <span>{pickText(option.label, language)}</span>
-                    <strong>+{formatPrice(option.price, language, currency)}</strong>
+                    <strong>+{formatPrice(option.price, language)} TND</strong>
                   </label>
                 ))}
               </fieldset>
@@ -107,7 +105,6 @@ export default function MenuItemDetails({
                         .reduce((sum, option) => sum + option.price, 0)) *
                       quantity,
                     language,
-                    currency,
                   )}
                 </span>
               </button>

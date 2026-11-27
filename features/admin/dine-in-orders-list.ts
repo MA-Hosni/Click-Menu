@@ -107,7 +107,7 @@ export function parseDineInCreatedAt(value: string): Date | null {
 }
 
 export function formatDineInTotal(amount: number, language: Language): string {
-  return formatMinorUnits(amount, "TND", language);
+  return `${formatMinorUnits(amount, language)} TND`;
 }
 
 function parsePage(value: unknown, expectedLimit: number): DineInOrderPage {

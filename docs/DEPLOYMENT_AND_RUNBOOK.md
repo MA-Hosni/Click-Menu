@@ -64,19 +64,21 @@ Local PostgreSQL tests execute the production TypeScript order service and Drizz
 ## First deployment
 
 1. Provision PostgreSQL and set DATABASE_URL (direct connection) and DATABASE_URL_POOLED (pooled Neon URL).
-2. For an existing database with legacy images, stop application writes and run `node scripts/migrate-menu-images-to-s3.mjs` against the same database before applying migration 0004. The command validates and verifies every object, reports source/verified/failure totals, and does not change database rows. It is safe to rerun after interruption; matching existing objects are verified. Skip it for a new empty database.
-3. Back up the database and apply committed migrations with `npm run db:migrate` using DATABASE_URL. Inspect the migration ledger first and apply only pending migrations. Migration 0005 initializes the database-backed 300-image capacity counter; deploy it before enabling uploads. Migrations 0006 and 0007 add registered restaurant tables and recoverable QR rotation state.
+2. Apply the committed initial schema to the clean database with `npm run db:migrate` using DATABASE_URL. This migration creates the current schema and seeds the image-capacity counter at zero. It is not a data migration for a database with existing application tables or legacy rows.
+3. For a separate older database that still contains legacy image bytes, use the documented image-transfer procedure before any migration that removes those bytes. The consolidated initial schema does not perform legacy image transfer or account/order data migration.
 4. From a trusted interactive terminal with the target environment's selected database configuration, run `npm run admin:password` to initialize the administrator credential. Neon uses `DATABASE_URL_POOLED`; local PostgreSQL uses `DATABASE_URL` with `DATABASE_DRIVER=postgres`. Use `-- --reset` only for an intentional reset; this increments the credential version and revokes all sessions.
 5. Set SITE_URL to the public origin used for metadata.
 6. Configure TABLE_QR_RECOVERY_KEY before enabling table QR rotation.
 7. Configure the same stable server-only `ORDER_TRACKING_RECOVERY_KEY` on every runtime instance before any normalized dine-in submissions. Keep `DINE_IN_ORDER_INTAKE_ENABLED` absent or set to `false`. Only the exact server-side value `true` enables `POST /api/dine-in/orders`; request data cannot change it. This switch remains disabled until checkout, tracking, staff processing, and operational review are complete.
 8. Install with npm ci, run lint/tests/type-check/build, then deploy the production build with npm run start or a compatible Next.js runtime.
 
+The initial migration must only be used for a clean database. Do not run it over an existing schema or use this reset history to erase tables in a database that may contain data. For Neon, confirm the target is empty and obtain explicit approval before applying it.
+
 The selected driver's runtime URL is required during `db/index.ts` module initialization: `DATABASE_URL_POOLED` for Neon and `DATABASE_URL` for PostgreSQL. A production Neon build needs a syntactically valid `DATABASE_URL_POOLED` even though it must not perform database requests during build. CI uses a fake, non-routable placeholder.
 
 ## Empty catalog and restaurant setup
 
-An empty database does not receive generated menu data. Public `GET /api/catalog` and the storefront return a blank The Hood catalog in TND with no categories or dishes; the authenticated admin catalog setup starts at revision 0. Sign in at `/admin/login`, create and save categories at `/admin/categories`, then create dishes at `/admin/menu`. Enter prices through the TND price input (stored as integer millimes); dish images are optional. There are no seed dishes or prices.
+An empty database does not receive generated menu data. Public `GET /api/catalog` and the storefront return a blank The Hood catalog with no categories or dishes; the authenticated admin catalog setup starts at revision 0. Sign in at `/admin/login`, create and save categories at `/admin/categories`, then create dishes at `/admin/menu`. Enter prices through the frontend price input (stored as integer units at scale 1,000); dish images are optional. There are no seed dishes or prices.
 
 Create each physical table in `/admin/tables` and use its generated QR code for that table. QR URLs contain opaque tokens, not table IDs. Rotating a QR token invalidates its previous token. Review the saved catalog revision using the TND price review control after checking its prices. Any subsequent catalog save invalidates that review and requires review of the new exact revision. Empty catalogs cannot accept orders.
 
@@ -85,7 +87,7 @@ Do not enable order intake as part of initial setup. The feature flag remains ab
 ## Operational checks
 
 - GET /api/health/db performs a read-only SELECT 1. Success returns success=true; failure returns HTTP 500 and logs details server-side.
-- GET /api/catalog reads The Hood's singleton catalog; `shop` query parameters are ignored. Before initial setup it returns a blank TND catalog with no categories or dishes.
+- GET /api/catalog reads The Hood's singleton catalog; `shop` query parameters are ignored. Before initial setup it returns a blank catalog with no categories or dishes.
 - /menu loads the singleton catalog after hydration; metadata lookup failure falls back to base metadata.
 - /api/admin/catalog, /api/admin/orders, and /api/admin/images require a valid singleton administrator session.
 - Production order submission and administrator sign-in depend on database connectivity and PostgreSQL-backed rate limits.
