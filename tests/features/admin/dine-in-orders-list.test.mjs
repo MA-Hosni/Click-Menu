@@ -19,6 +19,9 @@ const row = (orderId = "00000000-0000-4000-8000-000000000001", overrides = {}) =
   customerName: "Guest",
   tableLabel: "Patio 1",
   totalMillimes: 4250,
+  revision: 1790000000100,
+  customerNotes: null,
+  items: [{ productName: "Toast", quantity: 1, lineTotalMillimes: 4250, options: [] }],
   ...overrides,
 });
 
@@ -44,11 +47,11 @@ describe("normalized dine-in orders list state", () => {
       return response(page([row()]));
     });
     await controller.start();
-    await controller.setStatus("pending");
+    await controller.setView("finished");
 
     assert.equal(requests.length, 2);
-    assert.match(requests[0].url, /^\/api\/admin\/dine-in\/orders\?limit=25$/u);
-    assert.match(requests[1].url, /^\/api\/admin\/dine-in\/orders\?limit=25&status=pending$/u);
+    assert.match(requests[0].url, /^\/api\/admin\/dine-in\/orders\?limit=25&status=in_progress$/u);
+    assert.match(requests[1].url, /^\/api\/admin\/dine-in\/orders\?limit=25&status=finished$/u);
     assert.ok(requests.every(({ options }) => options.cache === "no-store"));
     assert.ok(requests.every(({ url }) => !url.includes("/api/admin/orders?")));
   });
@@ -65,11 +68,11 @@ describe("normalized dine-in orders list state", () => {
     await controller.loadMore();
     assert.equal(controller.getSnapshot().orders.length, 2);
 
-    await controller.setStatus("completed");
+    await controller.setView("finished");
     assert.deepEqual(controller.getSnapshot().orders.map((order) => order.orderId), [
       "00000000-0000-4000-8000-000000000003",
     ]);
-    assert.match(requests[2], /status=completed/u);
+    assert.match(requests[2], /status=finished/u);
     assert.doesNotMatch(requests[2], /cursor=/u);
   });
 
@@ -300,10 +303,10 @@ describe("normalized dine-in orders list state", () => {
   it("removes a locally updated order that no longer matches the active status filter", async () => {
     const controller = createDineInOrdersController(async () => response(page([row()], "cursor-first")));
     await controller.start();
-    await controller.setStatus("pending");
+    await controller.setView("finished");
     controller.updateOrderStatus(row().orderId, "confirmed");
     assert.deepEqual(controller.getSnapshot().orders, []);
-    assert.equal(controller.getSnapshot().status, "pending");
+    assert.equal(controller.getSnapshot().view, "finished");
     assert.equal(controller.getSnapshot().nextCursor, "cursor-first");
   });
 
@@ -332,7 +335,7 @@ describe("normalized dine-in orders list state", () => {
       return nextPage.promise;
     });
     await controller.start();
-    await controller.setStatus("pending");
+    await controller.setView("finished");
     const loadingMore = controller.loadMore();
     controller.updateOrderStatus(row().orderId, "confirmed");
     nextPage.resolve(response(page([row()])));
@@ -352,11 +355,62 @@ describe("normalized dine-in orders list state", () => {
     });
     await controller.start();
     const background = controller.refresh({ background: true });
-    await controller.setStatus("completed");
+    await controller.setView("finished");
     poll.resolve(response(page([row("00000000-0000-4000-8000-000000000003")])));
     await background;
-    assert.equal(controller.getSnapshot().status, "completed");
+    assert.equal(controller.getSnapshot().view, "finished");
     assert.deepEqual(controller.getSnapshot().orders.map((order) => order.status), ["completed"]);
+  });
+
+  it("narrows the board to today's orders and back again", async () => {
+    const requests = [];
+    const controller = createDineInOrdersController(async (url) => {
+      requests.push(String(url));
+      return response(page([row()]));
+    });
+    await controller.start();
+    await controller.setScope("today");
+    await controller.setScope("all");
+    assert.match(requests[1], /scope=today/u);
+    assert.doesNotMatch(requests[2], /scope=/u);
+    assert.equal(controller.getSnapshot().scope, "all");
+  });
+
+  it("drops a row that left the filtered view when the background response no longer returns it", async () => {
+    let requestCount = 0;
+    const controller = createDineInOrdersController(async () => {
+      requestCount += 1;
+      if (requestCount === 1) return response(page([row()]));
+      // The order was completed in another session, so the server stops returning it.
+      return response(page([row("00000000-0000-4000-8000-000000000002")]));
+    });
+    await controller.start();
+    await controller.refresh({ background: true });
+    assert.deepEqual(controller.getSnapshot().orders.map((order) => order.orderId), [
+      "00000000-0000-4000-8000-000000000002",
+    ]);
+  });
+
+  it("runs a manual refresh that arrives while a background poll is in flight", async () => {
+    const poll = deferred();
+    let requestCount = 0;
+    const controller = createDineInOrdersController(async () => {
+      requestCount += 1;
+      if (requestCount === 1) return response(page([row()]));
+      if (requestCount === 2) return poll.promise;
+      return response(page([row("00000000-0000-4000-8000-000000000002")]));
+    });
+    await controller.start();
+    const background = controller.refresh({ background: true });
+    const manual = controller.refresh();
+    assert.equal(requestCount, 2);
+    poll.resolve(response(page([row()])));
+    await background;
+    await manual;
+    assert.equal(requestCount, 3);
+    assert.deepEqual(controller.getSnapshot().orders.map((order) => order.orderId), [
+      "00000000-0000-4000-8000-000000000002",
+    ]);
   });
 
 });

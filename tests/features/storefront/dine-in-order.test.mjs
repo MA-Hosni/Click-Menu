@@ -15,11 +15,13 @@ const {
   createDineInIdempotencyKey,
   createDineInOrderPayload,
   createPendingDineInSubmission,
+  dineInOrderSessionHistoryKey,
   deriveTableStorageId,
   getDineInStorage,
   isDineInIdempotencyKey,
   isTerminalDineInSubmissionError,
   loadDineInCart,
+  loadDineInOrderSessionHistory,
   loadPendingDineInSubmission,
   markPendingDineInTerminal,
   parsePendingDineInSubmission,
@@ -27,6 +29,8 @@ const {
   postDineInSubmission,
   reconcileDineInCart,
   removePendingDineInSubmission,
+  releaseAcknowledgedDineInOrder,
+  rememberDineInOrderInSession,
   reconcilePendingDineInSubmission,
   restoreDineInCart,
   saveDineInCart,
@@ -103,6 +107,32 @@ describe("registered-table dine-in cart and submission", () => {
     await saveDineInCart(storage, tokenA, cartA);
     assert.equal((await loadDineInCart(storage, tokenA))[0].quantity, 2);
     assert.deepEqual(await loadDineInCart(storage, tokenB), []);
+  });
+
+  it("keeps a separate table-session order history, newest first, without exposing the QR token in its key", async () => {
+    const storage = memoryStorage();
+    const first = { orderId, createdAt: 100 };
+    const second = { orderId: "00000000-0000-4000-8000-000000000002", createdAt: 200 };
+    await rememberDineInOrderInSession(storage, tokenA, first);
+    await rememberDineInOrderInSession(storage, tokenA, second);
+    await rememberDineInOrderInSession(storage, tokenA, first);
+
+    assert.deepEqual(await loadDineInOrderSessionHistory(storage, tokenA), [second, first]);
+    assert.notEqual(await dineInOrderSessionHistoryKey(tokenA), await dineInOrderSessionHistoryKey(tokenB));
+    assert.equal((await dineInOrderSessionHistoryKey(tokenA)).includes(tokenA), false);
+    assert.deepEqual(await loadDineInOrderSessionHistory(storage, tokenB), []);
+  });
+
+  it("releases the next-order slot only after safely recording a successful receipt", async () => {
+    const storage = memoryStorage();
+    const fallback = memoryFallback();
+    const operation = createPendingDineInSubmission(createDineInIdempotencyKey(), payload());
+    await savePendingDineInSubmission(storage, tokenA, operation);
+
+    assert.equal(await releaseAcknowledgedDineInOrder(storage, tokenA, operation, orderId, fallback), true);
+    assert.deepEqual(await loadPendingDineInSubmission(storage, tokenA, fallback), { kind: "none" });
+    assert.equal(await fallback.get(await deriveTableStorageId(tokenA)), null);
+    assert.equal(await releaseAcknowledgedDineInOrder(storage, tokenA, operation, "00000000-0000-4000-8000-000000000002", fallback), false);
   });
 
   it("does not expose or persist table A cart state under table B's scope", () => {

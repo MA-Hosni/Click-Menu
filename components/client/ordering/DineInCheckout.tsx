@@ -8,7 +8,7 @@ import { pickText } from "../../../lib/text";
 import { isTerminalDineInSubmissionError, reconcileDineInCart } from "../../../features/storefront/dine-in-order";
 import type { useDineInCheckout } from "../../../features/storefront/useDineInCheckout";
 import { copy } from "../../../features/storefront/i18n/copy";
-import { trackingLink } from "../../../features/storefront/order-tracking";
+import { loadTrackingCapability, trackingLink } from "../../../features/storefront/order-tracking";
 import Modal from "../shared/Modal";
 
 export default function DineInCheckout({
@@ -61,6 +61,37 @@ export default function DineInCheckout({
     }
   }
 
+  function tableOrderHistory() {
+    if (!checkout.orderHistory.length || typeof window === "undefined") return null;
+    try {
+      const orders = checkout.orderHistory.flatMap((entry) => {
+        const token = loadTrackingCapability(window.localStorage, entry.orderId);
+        return token ? [{ ...entry, token }] : [];
+      });
+      if (!orders.length) return null;
+      return (
+        <section className="dine-order-session-history" aria-label={t.yourTableOrders}>
+          <h4>{t.yourTableOrders}</h4>
+          <ol>
+            {orders.map((entry) => (
+              <li key={entry.orderId}>
+                <a href={`/track/${encodeURIComponent(entry.orderId)}#${entry.token}`} target="_blank" rel="noreferrer">
+                  {t.tableOrderReference} {entry.orderId.slice(0, 8).toUpperCase()}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </section>
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  async function orderSomethingElse() {
+    if (await checkout.startNewOrder()) onClose();
+  }
+
   return (
     <Modal open={open} onClose={onClose} label={t.cart} drawer>
       <div className="cart-heading">
@@ -93,11 +124,10 @@ export default function DineInCheckout({
               {t.dineAcknowledgeReceipt}
             </button>
           ) : (
-            <>
-              <p role="status">{t.dineReceiptAcknowledged}</p>
-              <button className="button primary full-width" type="button" onClick={() => void checkout.startNewOrder()}>{t.newOrder}</button>
-            </>
+            <p role="status">{t.dineReceiptAcknowledged}</p>
           )}
+          <button className="button primary full-width" type="button" onClick={() => void orderSomethingElse()}>{t.orderSomethingElse}</button>
+          {tableOrderHistory()}
         </section>
       ) : checkout.pendingStatus === "unknown" ? (
         <section className="dine-in-checkout" role="alert">
@@ -112,13 +142,15 @@ export default function DineInCheckout({
           <h3>{t.dineReceiptTitle}</h3>
           <p>{t.dineReceiptAcknowledgedElsewhere}</p>
           {checkout.completedOrderId && <p>{t.dineOrderIdLabel}: <code>{checkout.completedOrderId}</code></p>}
-          <button className="button primary full-width" type="button" onClick={() => void checkout.startNewOrder()}>{t.newOrder}</button>
+          {tableOrderHistory()}
+          <button className="button primary full-width" type="button" onClick={() => void orderSomethingElse()}>{t.orderSomethingElse}</button>
         </section>
       ) : !cart.length ? (
         <div className="empty-cart">
           <ShoppingBag size={45} strokeWidth={1} />
           <h3>{t.empty}</h3>
           <p>{t.emptyText}</p>
+          {tableOrderHistory()}
           <button className="button primary" onClick={onClose}>{t.continue}</button>
         </div>
       ) : (

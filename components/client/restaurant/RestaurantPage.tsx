@@ -56,7 +56,7 @@ export default function RestaurantPage({
         restaurantName={restaurantName}
         language={storefront.language}
         itemCount={storefront.cart.reduce((sum, item) => sum + item.quantity, 0)}
-        showCart={dineInMode && (storefront.cart.length > 0 || dineInCheckout.receipt !== null)}
+        showCart={dineInMode && (storefront.cart.length > 0 || dineInCheckout.receipt !== null || dineInCheckout.orderHistory.length > 0)}
         onLanguageChange={changeLanguage}
         onOpenCart={() => setCartOpen(true)}
       />
@@ -89,10 +89,10 @@ export default function RestaurantPage({
         restaurantName={restaurantName}
         language={storefront.language}
       />
-      {dineInMode && (storefront.cart.length > 0 || dineInCheckout.receipt !== null) && !cartOpen && (
+      {dineInMode && (storefront.cart.length > 0 || dineInCheckout.receipt !== null || dineInCheckout.orderHistory.length > 0) && !cartOpen && (
         <button className="floating-cart" onClick={() => setCartOpen(true)}>
           {storefront.cart.length > 0 && <span className="cart-count">{storefront.cart.reduce((sum, item) => sum + item.quantity, 0)}</span>}
-          <span>{dineInCheckout.receipt ? storefront.t.dineReceiptTitle : storefront.t.viewOrder}</span>
+          <span>{dineInCheckout.receipt ? storefront.t.dineReceiptTitle : storefront.cart.length > 0 ? storefront.t.viewOrder : storefront.t.yourTableOrders}</span>
           <ArrowRight size={19} />
         </button>
       )}

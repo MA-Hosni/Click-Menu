@@ -139,6 +139,26 @@ describe("dine-in order persistence service", () => {
     assert.equal(store.items.length, 2);
   });
 
+  it("allows another same-table order in every earlier order status while preserving retries", async () => {
+    for (const status of ["pending", "confirmed", "preparing", "completed", "rejected", "cancelled"]) {
+      const { service, store, request } = fixture();
+      const originalKey = key();
+      const original = await service.submit(request, originalKey);
+      const saved = [...store.orders.values()][0];
+      saved.status = status;
+
+      const anotherKey = key();
+      const second = await service.submit(request, anotherKey);
+      const retry = await service.submit(request, anotherKey);
+
+      assert.notEqual(second.orderId, original.orderId, `new order should be separate after ${status}`);
+      assert.equal(second.replayed, false);
+      assert.equal(retry.orderId, second.orderId, `same-key retry should replay after ${status}`);
+      assert.equal(retry.replayed, true);
+      assert.equal(store.orders.size, 2, `both orders should remain after ${status}`);
+    }
+  });
+
   it("rejects inactive or rotated QR tokens for a new order", async () => {
     const { service, store, request } = fixture();
     store.active = false;

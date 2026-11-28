@@ -12,7 +12,9 @@ const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/u;
 const ALLOWED_TRANSITIONS: Record<NormalizedDineInOrderStatus, readonly DineInOrderTargetStatus[]> = {
   pending: ["confirmed", "rejected", "cancelled"],
   confirmed: ["preparing", "cancelled"],
-  preparing: ["completed", "cancelled"],
+  // An order that is already being prepared cannot be cancelled: the kitchen
+  // has started on it, so the only way out is to finish it.
+  preparing: ["completed"],
   completed: [],
   rejected: [],
   cancelled: [],
@@ -40,9 +42,16 @@ export interface UpdatedDineInOrderStatus {
   status: DineInOrderTargetStatus;
 }
 
+export interface ConfirmedAndPreparingDineInOrder {
+  orderId: string;
+  status: "preparing";
+  revision: number;
+}
+
 export function createDineInOrderStatusPatchHandler(dependencies: {
   getCurrentUser(): Promise<RequestIdentity | null>;
   updateStatus(orderId: string, targetStatus: DineInOrderTargetStatus): Promise<UpdatedDineInOrderStatus | null>;
+  confirmAndPrepare(orderId: string, revision: number): Promise<ConfirmedAndPreparingDineInOrder | null>;
 }) {
   return async function PATCH(
     request: Request,
@@ -54,6 +63,16 @@ export function createDineInOrderStatusPatchHandler(dependencies: {
       if (!UUID_PATTERN.test(id)) throw new ApiError("The order ID is invalid.", 400);
       assertSameOrigin(request);
       const body: unknown = await readBoundedJson(request, 1_000);
+      if (body && typeof body === "object" && !Array.isArray(body) &&
+        Object.keys(body).sort().join(",") === "action,revision" &&
+        (body as { action?: unknown }).action === "confirm_and_prepare") {
+        const revision = (body as { revision?: unknown }).revision;
+        if (typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 0)
+          throw new ApiError("The order revision is invalid.", 400);
+        const updated = await dependencies.confirmAndPrepare(id, revision);
+        if (!updated) throw new ApiError("Order not found.", 404);
+        return jsonResponse(updated);
+      }
       if (
         !body || typeof body !== "object" || Array.isArray(body) ||
         Object.keys(body).length !== 1 || !Object.hasOwn(body, "status")

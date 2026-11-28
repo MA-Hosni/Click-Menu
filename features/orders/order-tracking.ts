@@ -44,7 +44,9 @@ export async function queryCustomerDineInTrackingStatus<Database extends PgDatab
     throw new Error("Persisted customer tracking status failed integrity validation.");
 
   return {
-    orderReference: row.orderId.slice(-8).toUpperCase(),
+    // The first eight characters are the short reference the customer receipt
+    // and the administrator board both show, so all three agree.
+    orderReference: row.orderId.slice(0, 8).toUpperCase(),
     status: row.status as CustomerDineInTrackingStatus["status"],
     updatedAt: Number(row.updatedAt),
   };

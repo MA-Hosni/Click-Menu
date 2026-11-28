@@ -24,11 +24,11 @@ ClickMenu uses Next.js 16 App Router. The root app/ directory owns routes, layou
 
 - app may compose components and features.
 - components may depend on features and shared lib modules.
-- features may depend on suitable features and lib, but not app or components.
+- features may depend on suitable features, lib, and the shared `db/schema` constants, but not app or components.
 - lib remains independent of React UI.
 - db is server-side infrastructure; never import its client or stores into browser components.
 
-Admin localization/context lives in features/admin/i18n/admin-copy.ts. Customer translations live in features/storefront/i18n/copy.ts.
+Admin localization/context lives in features/admin/i18n/ (`admin-copy.ts`, `dine-in-orders-copy.ts`, `dine-in-table-label.ts`). Customer translations live in features/storefront/i18n/copy.ts.
 
 ## State ownership
 
@@ -38,9 +38,17 @@ app/admin/layout.tsx mounts AdminProvider once and keeps it mounted across child
 
 QR reads saved catalog settings. Orders own separate loading, polling, filtering, notification, and status state.
 
+### Admin orders
+
+The admin orders page reads two independent stores and never mixes them. The live board owns the normalized `dine_in_orders` history: one client controller holds the list, the cursor, the active view filter, the date scope, the poll timer, and the local status overrides, and it refreshes itself every 30 seconds while the tab is visible. A background refresh merges into the list, keeps the loaded pages, and drops rows the server no longer returns under the active filter, so an order finished in another session stops looking actionable. A manual refresh requested while a background poll is in flight is queued behind it rather than dropped. The board figures come from a separate summary endpoint, and a failed background refresh is surfaced instead of being swallowed.
+
+The board has three status views — in progress (pending, confirmed, preparing), finished (completed, rejected, cancelled), and all — plus a date scope of "today" or "all time". The "past orders" tab is a read-only archive over the same normalized history, searched by customer name, table label, order reference, or an inclusive date range; the search runs in the database, not in the browser. The preserved records of the previous ordering system stay a separate read path with no table label and no amount, and are shown only when the store still holds rows.
+
+The status of an order is owned by the server. The board may show a local status until the next read confirms it, and it sends the order's current revision when it asks for the atomic confirm-and-prepare transition. An order that is already being prepared cannot be cancelled: the kitchen has started on it.
+
 ### Customer storefront
 
-features/storefront/useStorefront owns the loaded catalog, language, and cart. Legacy cart data is restaurant-scoped; registered-table cart data uses a SHA-256-derived table scope in localStorage. Dine-in pending attempts use a separate record with the exact retry request, coordinated across tabs with Web Locks. Acknowledgment stores only the completed order reference in the retry record and separately saves the tracking capability under an order-scoped localStorage key. The tracking page accepts the URL fragment first, then a matching order-scoped local copy; local storage is recovery convenience, not authorization. Tracking links contain the capability in the fragment and customers can copy/share the link. The token is not rendered into server HTML. A customer may remove the saved local entry explicitly; terminal status does not remove it. Browser data can be cleared or unavailable, and cross-device recovery requires the private tracking link. Pending retry state uses conditional cleanup, tombstones, and IndexedDB fallback to prevent uncertain writes from being mistaken for an empty state. Server-side idempotency is the final duplicate safeguard. If required storage or Web Locks cannot be used, dine-in submission fails closed. There is no global storefront provider; RestaurantPage composes the hooks.
+features/storefront/useStorefront owns the loaded catalog, language, and cart. Legacy cart data is restaurant-scoped; registered-table cart data uses a SHA-256-derived table scope in localStorage. Dine-in pending attempts use a separate record with the exact retry request, coordinated across tabs with Web Locks. After a successful receipt, customers can start another order from the same QR session; the retry record is acknowledged and safely cleared while the exact tracking capability remains stored under its order-scoped localStorage key. A capped table-session index keeps recent order references reachable in that browser profile. The tracking page accepts the URL fragment first, then a matching order-scoped local copy; local storage is recovery convenience, not authorization. Tracking links contain the capability in the fragment and customers can copy/share the link. The token is not rendered into server HTML. A customer may remove the saved local entry explicitly; terminal status does not remove it. Browser data can be cleared or unavailable, and cross-device recovery requires the private tracking link. Pending retry state uses conditional cleanup, tombstones, and IndexedDB fallback to prevent uncertain writes from being mistaken for an empty state. Server-side idempotency is the final duplicate safeguard. If required storage or Web Locks cannot be used, dine-in submission fails closed. There is no global storefront provider; RestaurantPage composes the hooks.
 
 The legacy WhatsApp checkout was removed. The normalized dine-in browser harness remains gated to a development loopback test route and uses a mocked transport; it does not exercise persistence. Intake remains disabled by default.
 
@@ -54,6 +62,7 @@ The legacy WhatsApp checkout was removed. The normalized dine-in browser harness
 - Mutation requests use same-origin validation.
 - Menu photo bytes live in private S3-compatible object storage; PostgreSQL stores image IDs and metadata. The server image route retrieves object bytes without exposing storage credentials.
 - The /menu metadata lookup is request-time because it uses searchParams and a database lookup. Failure does not prevent the menu route itself from rendering.
+- The short order reference is derived from the order UUID in one place and shown identically in the customer receipt, the customer's own order list, the customer tracking response, and the admin order drawer.
 
 ## Decisions
 

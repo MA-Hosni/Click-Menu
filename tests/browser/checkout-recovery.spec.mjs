@@ -340,7 +340,7 @@ test("keeps the exact request until acknowledgment and recovers the original rec
   await page.route(`**/api/dine-in/orders/${firstOrderId}/tracking`, async (route) => {
     assert.equal(route.request().headers().authorization, `Bearer ${trackingToken}`);
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
-      orderReference: firstOrderId.slice(-8).toUpperCase(), status: "completed", updatedAt: 1_800_000_000_000,
+      orderReference: firstOrderId.slice(0, 8).toUpperCase(), status: "completed", updatedAt: 1_800_000_000_000,
     }) });
   });
   await page.goto(`/track/${firstOrderId}`);
