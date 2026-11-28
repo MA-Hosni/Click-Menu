@@ -8,6 +8,7 @@ The current schema is defined in db/schema.ts. The checked-in initial migration 
 | --- | --- |
 | restaurant_catalogs | Singleton row (`id = 1`), serialized currency-free catalog payload, integer revision, nullable price-reviewed revision and timestamp, update timestamp |
 | menu_images | Random image ID primary key, S3 object key, content type, byte length, creation time |
+| image_upload_capacity | Singleton row (`id = 1`) reserving image slots; `image_count` constrained to 0–300 |
 | restaurant_tables | Random internal ID, case-insensitively unique label, unique SHA-256 QR token hash, QR version, latest rotation idempotency hash and encrypted recovery token, active state, created/updated timestamps |
 | orders | Legacy source table: order ID, `owner_id` partition, creation time, serialized JSON payload; retained unchanged |
 | legacy_orders_archive | Copy of legacy order ID, original storage key as historical provenance, creation time, and exact JSON payload |
@@ -18,7 +19,7 @@ The current schema is defined in db/schema.ts. The checked-in initial migration 
 | sessions | Hashed token primary key, credential version, expiry, creation time. A version mismatch invalidates sessions from an older password. |
 | rate_limits | Hashed limit key primary key, window start, request count |
 
-The singleton catalog and legacy orders still use serialized text payloads. `legacy_orders_archive` preserves the legacy payload exactly; its `legacy_storage_key` is inert historical provenance, not identity or authorization. The normalized dine-in order service persists orders through `POST /api/dine-in/orders`; customer checkout, tracking, and staff order management use this normalized workflow, while intake remains controlled by the server-only feature flag. The tables have foreign keys from order items to their order and from orders to registered tables, with deletion restricted so order references remain valid. Menu products/options are not referenced by foreign keys; snapshots preserve history independently of catalog edits.
+The singleton catalog and legacy orders still use serialized text payloads. `legacy_orders_archive` preserves the legacy payload exactly; its `legacy_storage_key` is inert historical provenance, not identity or authorization. The normalized dine-in order service persists orders through `POST /api/dine-in/orders`; customer checkout, tracking, and staff order management use this normalized workflow, while intake remains controlled by the server-only feature flag. The tables have foreign keys from `dine_in_order_items` to `dine_in_orders` and from `dine_in_orders.table_id` to `restaurant_tables.id`, both with deletion restricted so order references remain valid. The retained legacy `orders` table has no foreign keys. Menu products/options are not referenced by foreign keys; snapshots preserve history independently of catalog edits.
 
 Catalog edits use compare-and-swap revision updates against the singleton row. A missing row is an explicit uninitialized state; public access returns a blank The Hood catalog and the authenticated admin receives the same blank catalog to set up. No catalog row or demo product is written by that fallback. Legacy currency labels in saved catalog JSON are ignored and omitted from validated API payloads.
 

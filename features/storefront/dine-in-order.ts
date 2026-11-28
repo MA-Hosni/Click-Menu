@@ -26,6 +26,11 @@ export interface PendingDineInSubmission {
   disposition: "retryable" | "terminal-conflict";
 }
 
+export interface DineInOrderSessionReference {
+  orderId: string;
+  createdAt: number;
+}
+
 export type PendingDineInStorageState =
   | { kind: "none" }
   | { kind: "retryable"; operation: PendingDineInSubmission }
@@ -188,6 +193,53 @@ export async function pendingDineInStorageKey(tableToken: string): Promise<strin
   return `tabletap:dine-in-pending:v2:${await deriveTableStorageId(tableToken)}`;
 }
 
+export async function dineInOrderSessionHistoryKey(tableToken: string): Promise<string> {
+  return `tabletap:dine-in-orders:v1:${await deriveTableStorageId(tableToken)}`;
+}
+
+const ORDER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+export async function loadDineInOrderSessionHistory(
+  storage: StringStorage | null,
+  tableToken: string,
+): Promise<DineInOrderSessionReference[]> {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(await dineInOrderSessionHistoryKey(tableToken));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row): row is DineInOrderSessionReference =>
+      !!row && typeof row === "object" && !Array.isArray(row) &&
+      Object.keys(row).sort().join(",") === "createdAt,orderId" &&
+      typeof (row as DineInOrderSessionReference).orderId === "string" && ORDER_ID.test((row as DineInOrderSessionReference).orderId) &&
+      Number.isSafeInteger((row as DineInOrderSessionReference).createdAt) && (row as DineInOrderSessionReference).createdAt >= 0)
+      .sort((left, right) => right.createdAt - left.createdAt || right.orderId.localeCompare(left.orderId))
+      .slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
+export async function rememberDineInOrderInSession(
+  storage: StringStorage | null,
+  tableToken: string,
+  reference: DineInOrderSessionReference,
+): Promise<DineInOrderSessionReference[]> {
+  if (!storage || !ORDER_ID.test(reference.orderId) || !Number.isSafeInteger(reference.createdAt) || reference.createdAt < 0)
+    return loadDineInOrderSessionHistory(storage, tableToken);
+  const history = await loadDineInOrderSessionHistory(storage, tableToken);
+  const next = [reference, ...history.filter((entry) => entry.orderId !== reference.orderId)]
+    .sort((left, right) => right.createdAt - left.createdAt || right.orderId.localeCompare(left.orderId))
+    .slice(0, 20);
+  try {
+    storage.setItem(await dineInOrderSessionHistoryKey(tableToken), JSON.stringify(next));
+    return next;
+  } catch {
+    return history;
+  }
+}
+
 export async function loadDineInCart(storage: StringStorage, tableToken: string): Promise<CartItem[]> {
   try {
     return restoreDineInCart(JSON.parse(storage.getItem(await tableCartStorageKey(tableToken)) || "[]"));
@@ -287,6 +339,21 @@ export async function acknowledgeDineInSubmission(
     current.operation.idempotencyKey !== operation.idempotencyKey ||
     current.operation.payloadJson !== operation.payloadJson) return false;
   return writeCompletedMarker(storage, tableToken, orderId);
+}
+
+/** A successful receipt can release the single retry slot after its tracking data is saved. */
+export async function releaseAcknowledgedDineInOrder(
+  storage: StringStorage | null,
+  tableToken: string,
+  operation: PendingDineInSubmission,
+  orderId: string,
+  fallback: TerminalDineInFallbackStorage | null = getTerminalDineInFallbackStorage(),
+): Promise<boolean> {
+  if (!storage || !await acknowledgeDineInSubmission(storage, tableToken, operation, orderId, fallback))
+    return false;
+  return await removePendingDineInSubmission(
+    storage, tableToken, { kind: "completed", orderId }, "new-order", fallback,
+  ) === "removed";
 }
 
 export type DineInCleanupExpectation =

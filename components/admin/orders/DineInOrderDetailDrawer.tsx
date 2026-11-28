@@ -18,6 +18,7 @@ import type { DineInOrderTargetStatus } from "../../../features/admin/dine-in-or
 import type { DineInOrderStatus } from "../../../features/admin/dine-in-orders-list";
 import type { DineInOrderDetailState } from "../../../features/admin/dine-in-order-detail";
 import { formatDineInTotal, parseDineInCreatedAt } from "../../../features/admin/dine-in-orders-list";
+import { requiresDineInDestructiveConfirmation } from "../../../features/admin/dine-in-order-card-actions";
 
 export default function DineInOrderDetailDrawer({
   orderId,
@@ -33,6 +34,7 @@ export default function DineInOrderDetailDrawer({
   const { t, language } = useAdminCopy();
   const [controller] = useState(() => createDineInOrderDetailController());
   const [state, setState] = useState<DineInOrderDetailState>(controller.getSnapshot());
+  const [confirmTarget, setConfirmTarget] = useState<DineInOrderTargetStatus | null>(null);
   const locale = language === "ar" ? "ar-TN" : language === "fr" ? "fr" : "en-GB";
 
   useEffect(() => {
@@ -47,6 +49,7 @@ export default function DineInOrderDetailDrawer({
     latestListStatus !== detail.status && !state.statusUpdating;
 
   async function updateStatus(status: DineInOrderTargetStatus) {
+    setConfirmTarget(null);
     const error = await controller.updateStatus(status);
     if (error === null) onStatusUpdated(orderId, status);
     else if (error === "notFound" || error === "conflict") onReconcile();
@@ -120,7 +123,7 @@ export default function DineInOrderDetailDrawer({
           <dl className="admin-dine-order-detail-summary">
             <div>
               <dt>{t.dineInOrderTableLabel}</dt>
-              <dd>{detail.tableLabel}</dd>
+              <dd>{t.dineInTable(detail.tableLabel)}</dd>
             </div>
             <div>
               <dt>{t.dineInOrderCustomerLabel}</dt>
@@ -160,21 +163,34 @@ export default function DineInOrderDetailDrawer({
             <section className="admin-dine-order-actions" aria-labelledby="dine-in-order-actions-heading" aria-busy={state.statusUpdating}>
               <h3 id="dine-in-order-actions-heading">{t.dineInOrderActionsHeading}</h3>
               <div>
-                {getDineInOrderStatusActions(detail.status).map((targetStatus) => (
-                  <button
-                    type="button"
-                    key={targetStatus}
-                    className="admin-secondary"
-                    onClick={() => void updateStatus(targetStatus)}
-                    disabled={state.statusUpdating || state.loading ||
-                      (!!state.statusError && state.statusError !== "conflict")}
-                    aria-busy={state.statusTarget === targetStatus}
-                  >
-                    {state.statusTarget === targetStatus
-                      ? t.dineInOrderUpdating
-                      : t.dineInOrderActions[targetStatus]}
-                  </button>
-                ))}
+                {getDineInOrderStatusActions(detail.status).map((targetStatus) => {
+                  const destructive = requiresDineInDestructiveConfirmation(targetStatus);
+                  if (confirmTarget === targetStatus) return (
+                    <div className="admin-dine-order-destructive-confirm" role="group" key={targetStatus} aria-label={targetStatus === "rejected" ? t.dineInRejectConfirmPrompt : t.dineInCancelConfirmPrompt}>
+                      <p>{targetStatus === "rejected" ? t.dineInRejectConfirmPrompt : t.dineInCancelConfirmPrompt}</p>
+                      <button type="button" className="admin-destructive" onClick={() => void updateStatus(targetStatus)} disabled={state.statusUpdating || state.loading}>
+                        <X size={16} aria-hidden="true" />
+                        {targetStatus === "rejected" ? t.dineInRejectConfirmed : t.dineInCancelConfirmed}
+                      </button>
+                      <button type="button" className="admin-secondary" onClick={() => setConfirmTarget(null)} disabled={state.statusUpdating || state.loading}>{t.dineInKeepOrder}</button>
+                    </div>
+                  );
+                  return (
+                    <button
+                      type="button"
+                      key={targetStatus}
+                      className={destructive ? "admin-destructive" : "admin-secondary"}
+                      onClick={() => destructive ? setConfirmTarget(targetStatus) : void updateStatus(targetStatus)}
+                      disabled={state.statusUpdating || state.loading ||
+                        (!!state.statusError && state.statusError !== "conflict")}
+                      aria-busy={state.statusTarget === targetStatus}
+                    >
+                      {state.statusTarget === targetStatus
+                        ? t.dineInOrderUpdating
+                        : t.dineInOrderActions[targetStatus]}
+                    </button>
+                  );
+                })}
               </div>
             </section>
           )}

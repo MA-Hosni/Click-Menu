@@ -37,13 +37,15 @@ Unless specifically requested, preserve user-visible design, routes, API contrac
 
 ### app/
 
-Owns routes, layouts, metadata, and API handlers. Customer routes are /, /menu, and /t/[token]. Only /t/[token] establishes registered table context; /menu query parameters do not. Admin routes are /admin/menu, /admin/categories, /admin/orders, /admin/restaurant, and /admin/tables. /admin/qr redirects to /admin/tables; /admin redirects to /admin/menu.
+Owns routes, layouts, metadata, and API handlers. Customer routes are /, /menu, /t/[token], and /track/[orderId]. Only /t/[token] establishes registered table context; /menu query parameters do not. Admin routes are /admin/login, /admin/menu, /admin/categories, /admin/orders, /admin/restaurant, and /admin/tables. /admin/qr redirects to /admin/tables; /admin redirects to /admin/menu.
+
+app/browser-test/ holds the development-only checkout harness and is never mounted in production deployments.
 
 The nested app/admin/layout.tsx mounts the shared AdminProvider and persistent layout once. API handlers stay under app/api/ and should delegate reusable domain work to suitable modules.
 
 ### components/admin/
 
-Contains admin presentation grouped under layout/, auth/, menu/, categories/, orders/, restaurant/, and qr/. Shared layout belongs in layout/. Do not place domain state or database operations in feature UI.
+Contains admin presentation grouped under layout/, auth/, menu/, categories/, orders/, restaurant/, tables/, and qr/. Shared layout belongs in layout/. Do not place domain state or database operations in feature UI.
 
 ### components/client/
 
@@ -51,21 +53,23 @@ Contains storefront presentation grouped under restaurant/, menu/, cart/, orderi
 
 ### components/ui/
 
-Contains generic UI primitives, not ClickMenu-specific business components.
+Contains generic UI primitives, not ClickMenu-specific business components. This project compiles plain CSS only: Tailwind is installed but no utility is ever generated, so a component must not rely on a utility class. Give a primitive its own class names and define them in app/globals.css.
 
 ### features/
 
-features/admin/ owns AdminProvider, shared catalog lifecycle, save reconciliation, and admin translations/context in features/admin/i18n/.
+features/admin/ owns AdminProvider, shared catalog lifecycle, save reconciliation, the admin orders board state, and admin translations/context in features/admin/i18n/.
+
+features/orders/ owns the normalized dine-in order domain: request canonicalization, price derivation, persistence, list/detail/status queries, the dashboard summary, customer tracking, and tracking-token recovery.
 
 features/storefront/ owns catalog/cart and checkout hooks plus customer translations in features/storefront/i18n/.
 
-Feature modules may depend on appropriate features and lib modules. They must not import from app/ or components/.
+Feature modules may depend on appropriate features, lib modules, and the shared db/schema constants. They must not import from app/ or components/.
 
 ### lib/, db/, and drizzle/
 
 lib/ contains shared domain utilities, validation, server-side data access, and types; do not import React UI into lib/.
 
-db/ contains the Drizzle schema and Neon client. Keep the database client and stores server-only.
+db/ contains the Drizzle schema, the Neon client, the local node-postgres driver path, the connection pool, and the transaction helpers. Keep the database client and stores server-only.
 
 drizzle/ contains committed SQL migrations and metadata. Do not change the schema or migration files for a UI-only refactor.
 
@@ -81,17 +85,19 @@ Menu, categories, and restaurant settings edit one catalog draft owned by AdminP
 
 ### Orders and authentication
 
-Orders own independent loading, filtering, polling, notification, and status state. Preserve password-only singleton administrator authentication, secure hashed session cookies, credential-version invalidation, and administrator checks in every protected API. Never expose secrets or trust client identity.
+Orders own independent loading, filtering, polling, notification, and status state. The admin orders board and the past-order archive read the normalized order history; the preserved legacy history is a separate read path over a separate store, and the two are never merged into one list. Preserve password-only singleton administrator authentication, secure hashed session cookies, credential-version invalidation, and administrator checks in every protected API. Never expose secrets or trust client identity.
 
 The restaurant is The Hood; there are no owner IDs in authentication. The catalog uses one fixed singleton row and menu image bytes use private S3-compatible object storage, with metadata in PostgreSQL. A temporary server-only key in `lib/legacy-restaurant-key.ts` remains only for the legacy order store. Do not use it as identity or expose it to clients. Remove the remaining order `owner_id` column and store parameter in the order persistence phase.
 
+An order that is already being prepared cannot be cancelled: the kitchen has started on it. Keep the server transition table and the administrator client in agreement.
+
 ### Customer ordering
 
-The server validates order details and derives prices, totals, and availability from the published catalog. Never trust client-provided prices or totals.
+The server validates order details and derives prices, totals, and availability from the published catalog. Never trust client-provided prices or totals. The short order reference shown to the customer, in the customer order list, and in the admin order drawer must stay the same value.
 
 ### Localization
 
-Preserve English, French, and Arabic. Arabic must retain correct RTL behavior. Keep dictionaries in their owning feature i18n directory.
+Preserve English, French, and Arabic. Arabic must retain correct RTL behavior. Keep dictionaries in their owning feature i18n directory. Every customer-facing string needs a French and an Arabic translation; an English-only key that falls back through the shared dictionary is a defect, not a shortcut.
 
 ## Code quality
 

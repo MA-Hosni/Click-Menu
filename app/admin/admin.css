@@ -993,25 +993,41 @@
   opacity: 0.35;
 }
 /* Orders */
+/* Orders */
+.admin-orders {
+  display: block;
+}
+.admin-historical-orders {
+  margin-top: 4px;
+}
+/* Two order systems live side by side; the switch is a segmented control so
+   it never reads as a status filter. */
 .admin-order-system-switch {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 22px;
-  border-bottom: 1px solid var(--admin-line);
+  display: inline-flex;
+  gap: 3px;
+  margin: 0 0 22px;
+  padding: 3px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: var(--admin-quiet-bg);
 }
 .admin-order-system-switch button {
-  min-height: 44px;
-  padding: 8px 12px;
+  min-height: 38px;
+  padding: 6px 14px;
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-radius: 6px;
   background: transparent;
   color: var(--admin-muted);
   font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.admin-order-system-switch button:not(.active):hover {
+  color: var(--admin-ink);
 }
 .admin-order-system-switch button.active {
-  border-bottom-color: var(--admin-accent);
-  color: var(--admin-ink);
-  font-weight: 600;
+  background: var(--admin-ink);
+  color: var(--admin-on-ink);
 }
 .admin-order-system-switch button:focus-visible,
 .admin-dine-orders button:focus-visible,
@@ -1021,81 +1037,224 @@
 }
 .admin-dine-orders-toolbar {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin: 4px 0 12px;
+  gap: 20px;
+  margin: 20px 0 0;
+  border-bottom: 1px solid var(--admin-line);
 }
-.admin-dine-orders-toolbar h2 {
-  margin: 0 0 12px;
-  font-size: 1.125rem;
+/* Board figures read as one ledger line, not as three separate cards. */
+.admin-order-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 28px;
+  max-width: 900px;
+  margin: 0;
+  padding: 18px 0 16px;
+  border-block: 1px solid var(--admin-line);
+}
+.admin-order-summary-figure {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-order-summary-figure > span {
+  color: var(--admin-muted);
+  font-size: 0.75rem;
   font-weight: 500;
 }
-.admin-dine-orders-filter {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+.admin-order-summary-figure > strong {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.admin-order-summary-figure > small {
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.admin-order-summary-figure.needs-action > strong {
+  justify-self: start;
+  width: fit-content;
+  padding-bottom: 3px;
+  border-bottom: 3px solid var(--admin-attention-ink);
+  color: var(--admin-attention-ink);
+}
+.admin-dine-orders-summary-error {
+  margin: 8px 0 0;
+  padding: 9px 12px;
+  border-inline-start: 3px solid var(--admin-attention-ink);
+  background: var(--admin-quiet-bg);
   color: var(--admin-muted);
   font-size: 0.8125rem;
 }
-.admin-dine-orders-filter select {
+.admin-order-view-tabs,
+.admin-dine-orders-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.admin-order-view-tabs button {
+  min-height: 44px;
+  padding: 8px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--admin-muted);
+  font: inherit;
+}
+.admin-order-view-tabs button.active {
+  border-bottom-color: var(--admin-accent);
+  color: var(--admin-ink);
+  font-weight: 600;
+}
+.admin-order-view-tabs button:hover:not(.active) {
+  color: var(--admin-ink);
+}
+.admin-dine-orders-scope {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--admin-line);
+  border-radius: 7px;
+  background: var(--admin-quiet-bg);
+}
+.admin-dine-orders-scope button {
+  min-height: 34px;
+  padding: 4px 11px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--admin-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.admin-dine-orders-scope button.active {
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  box-shadow: 0 1px 2px rgb(37 43 32 / 10%);
+}
+.admin-historical-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 4px 0 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--admin-line);
+}
+.admin-historical-search input {
   min-height: 40px;
+  min-width: 300px;
   max-width: 100%;
+  padding: 6px 12px;
+  border: 1px solid var(--admin-control);
+  border-radius: 6px;
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+.admin-historical-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+}
+.admin-historical-date input {
+  min-height: 40px;
   padding: 6px 10px;
   border: 1px solid var(--admin-control);
   border-radius: 6px;
-  color: var(--admin-ink);
   background: var(--admin-surface);
+  color: var(--admin-ink);
   font: inherit;
+  font-size: 0.8125rem;
+}
+.admin-historical-count {
+  margin-inline-start: auto;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.admin-historical-preserved {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--admin-line);
+}
+.admin-historical-preserved h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.admin-dine-orders-toolbar-actions button {
+  min-height: 44px;
+}
+.admin-dine-orders-checked {
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.admin-dine-orders-toolbar-actions .admin-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-dine-orders-stale {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border-inline-start: 3px solid var(--admin-attention-ink);
+  background: var(--admin-quiet-bg);
+  color: var(--admin-muted);
+  font-size: 0.8125rem;
 }
 .admin-dine-orders-refresh,
 .admin-dine-orders-more {
   min-height: 44px;
 }
-.admin-dine-order-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+/* One order is one ticket on a rail; the status colour is the rail colour. */
+.admin-dine-orders-list {
+  margin-top: 4px;
 }
-.admin-dine-order-heading > div:first-child > * {
-  display: block;
+.admin-dine-orders-list .admin-dine-order {
+  position: relative;
+  padding: 16px 0 18px 16px;
+  border-inline-start: 3px solid var(--admin-line);
+  cursor: pointer;
 }
-.admin-dine-order-heading > div:first-child > span {
-  margin-top: 5px;
-  color: var(--admin-muted);
+.admin-dine-order:has(.admin-dine-order-open:hover) .admin-dine-order-table {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
-.admin-dine-order .admin-order-total {
-  display: grid;
-  justify-items: end;
-  gap: 4px;
+.admin-dine-order:has(.admin-dine-order-open:hover) .admin-dine-order-chevron {
+  color: var(--admin-accent);
 }
-.admin-dine-order-badges {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
+.admin-dine-order-pending {
+  border-inline-start-color: var(--admin-attention-ink);
 }
-.admin-dine-order-new {
-  display: inline-block;
-  padding: 3px 8px;
-  border: 1px solid var(--admin-accent);
-  border-radius: 999px;
-  color: var(--admin-ink);
-  font-size: 0.75rem;
-  font-weight: 600;
+.admin-dine-order-confirmed {
+  border-inline-start-color: var(--admin-accent);
 }
-.admin-dine-order .admin-order-total strong {
-  font-size: 0.9375rem;
+.admin-dine-order-preparing {
+  border-inline-start-color: var(--admin-on);
 }
-.admin-dine-order .admin-order-total time {
-  color: var(--admin-muted);
-  font-size: 0.75rem;
+.admin-dine-order-completed {
+  border-inline-start-color: var(--admin-muted);
+}
+.admin-dine-order-rejected,
+.admin-dine-order-cancelled {
+  border-inline-start-color: var(--admin-off);
 }
 .admin-dine-order-open {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: baseline;
+  gap: 4px 18px;
   width: 100%;
   padding: 0;
   border: 0;
@@ -1105,31 +1264,177 @@
   font: inherit;
   cursor: pointer;
 }
-.admin-dine-order-open .admin-dine-order-heading > div:first-child > span:first-child {
+.admin-dine-order-open-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.admin-dine-order-table {
+  font-size: 1rem;
   font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--admin-accent);
+}
+.admin-dine-order-customer {
+  color: var(--admin-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.admin-dine-order-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.admin-dine-order-amount {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.admin-dine-order-amount strong {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.admin-dine-order-amount time {
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+}
+.admin-dine-order-chevron {
+  align-self: center;
+  color: var(--admin-control);
 }
 .admin-dine-order-status {
-  display: inline-block;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--admin-active);
-  color: var(--admin-ink);
   font-size: 0.75rem;
   font-weight: 600;
+  white-space: nowrap;
+  color: var(--admin-muted);
 }
 .admin-dine-order-status.pending {
-  background: var(--admin-attention-bg);
   color: var(--admin-attention-ink);
 }
-.admin-dine-order-pending {
-  border-inline-start: 4px solid var(--admin-attention-ink);
-  padding-inline-start: 14px;
+.admin-dine-order-status.confirmed {
+  color: var(--admin-accent);
+}
+.admin-dine-order-status.preparing {
+  color: var(--admin-on);
+}
+.admin-dine-order-status.completed {
+  color: var(--admin-muted);
+}
+.admin-dine-order-status.rejected,
+.admin-dine-order-status.cancelled {
+  color: var(--admin-off);
+}
+.admin-dine-order-new {
+  padding: 2px 6px;
+  background: var(--admin-attention-bg);
+  color: var(--admin-attention-ink);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 .admin-dine-orders-message {
-  padding: 14px 0;
+  margin: 16px 0 0;
+  padding: 20px 16px;
+  border: 1px solid var(--admin-line);
+  border-radius: 9px;
+  background: var(--admin-surface);
   color: var(--admin-muted);
+}
+.admin-dine-orders .admin-empty {
+  margin-top: 16px;
+  padding: 24px 18px;
+  border: 1px dashed var(--admin-control);
+  border-radius: 9px;
+  color: var(--admin-muted);
+  text-align: center;
+}
+/* Scoped under .admin-dine-order so the generic .admin-order list rules do not
+   override the ticket's own spacing. */
+.admin-dine-order .admin-dine-order-items {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-dine-order .admin-dine-order-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0;
+  font-size: 0.8125rem;
+}
+.admin-dine-order .admin-dine-order-items li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.admin-dine-order .admin-dine-order-items small {
+  color: var(--admin-muted);
+}
+.admin-dine-order .admin-dine-order-items strong {
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.admin-dine-order .admin-dine-order-notes {
+  margin: 10px 0 0;
+  color: var(--admin-muted);
+  white-space: pre-wrap;
+}
+.admin-dine-order-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+.admin-dine-order-card-actions button {
+  min-height: 44px;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 14px;
+}
+.admin-dine-order-card-actions .admin-secondary {
+  border-color: var(--admin-control);
+  background: transparent;
+}
+.admin-dine-order-reject-confirm,
+.admin-dine-order-destructive-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--admin-error);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--admin-error) 5%, var(--admin-surface));
+}
+.admin-dine-order-reject-confirm > span,
+.admin-dine-order-destructive-confirm > p {
+  flex: 1 0 100%;
+  margin: 0 0 2px;
+  color: var(--admin-ink);
+}
+.admin-dine-orders .admin-destructive,
+.admin-dine-order-detail-drawer .admin-destructive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 9px 14px;
+  border: 1px solid var(--admin-error);
+  border-radius: 6px;
+  background: var(--admin-error);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+.admin-dine-orders .admin-destructive:hover,
+.admin-dine-order-detail-drawer .admin-destructive:hover {
+  filter: brightness(0.92);
 }
 .admin-dine-orders-more {
   margin-top: 16px;
@@ -1145,12 +1450,8 @@
   --admin-surface: #ffffff;
   --admin-attention-bg: #fdf3df;
   --admin-attention-ink: #7a4b00;
-  display: flex !important;
-  flex-direction: column;
-  gap: 0 !important;
   width: min(34rem, 100vw) !important;
   max-width: 100vw !important;
-  height: 100vh !important;
   height: 100dvh !important;
   padding: 0 !important;
   overflow: hidden;
@@ -1227,7 +1528,7 @@
 .admin-dine-order-detail-summary dd {
   font-weight: 500;
 }
-.admin-dine-order-notes {
+.admin-dine-order-detail-drawer .admin-dine-order-notes {
   white-space: pre-wrap;
 }
 .admin-dine-order-detail-items-heading {
@@ -1362,17 +1663,75 @@
   }
 }
 @media (max-width: 700px) {
-  .admin-dine-orders-toolbar,
-  .admin-dine-order-heading {
+  .admin-dine-orders-toolbar {
     align-items: stretch;
     flex-direction: column;
+    gap: 0;
+  }
+  .admin-dine-orders-toolbar-actions {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 10px 0 8px;
+  }
+  .admin-dine-orders-toolbar-actions button {
+    flex: 0 0 auto;
+    justify-content: center;
+    padding-inline: 10px;
+  }
+  .admin-dine-orders-checked {
+    width: 100%;
+  }
+  .admin-order-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 20px;
+    padding: 14px 0;
+  }
+  .admin-order-summary-figure.today {
+    grid-column: 1 / -1;
+  }
+  .admin-order-summary-figure > strong {
+    font-size: 1.375rem;
+    overflow-wrap: anywhere;
+  }
+  .admin-order-view-tabs,
+  .admin-dine-orders-toolbar-actions {
+    gap: 12px;
+  }
+  .admin-order-view-tabs {
+    justify-content: space-between;
+  }
+  .admin-order-view-tabs button {
+    padding-inline: 2px;
+    font-size: 0.875rem;
+  }
+  .admin-dine-order-open {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 4px 10px;
+  }
+  .admin-dine-order-open-main {
+    grid-area: 1 / 1 / 2 / 2;
+  }
+  .admin-dine-order-tags {
+    grid-area: 1 / 2 / 2 / 3;
+    justify-content: flex-end;
+  }
+  .admin-dine-order-chevron {
+    grid-area: 1 / 3 / 2 / 4;
+  }
+  .admin-dine-order-amount {
+    grid-area: 2 / 1 / 3 / 4;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
   }
   .admin-dine-orders-refresh {
     align-self: flex-start;
   }
-  .admin-dine-order .admin-order-total {
-    justify-items: start;
-    text-align: start;
+  .admin-dine-order-card-actions > button {
+    flex: 1 1 auto;
+  }
+  .admin-dine-order-reject-confirm > button {
+    flex: 1 1 auto;
   }
   .admin-dine-order-detail-drawer {
     width: 100vw !important;
@@ -1392,117 +1751,6 @@
   }
 }
 
-.admin-order-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, max-content));
-  gap: 12px;
-  margin: 0;
-}
-.admin-order-summary > div {
-  padding: 12px 16px;
-  min-width: 130px;
-  background: var(--admin-panel);
-  border-radius: 8px;
-}
-.admin-order-summary dt {
-  font-size: 0.8125rem;
-  color: var(--admin-muted);
-}
-.admin-order-summary dd {
-  margin: 4px 0 0;
-  font-size: 1.25rem;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-.admin-order-toolbar {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px 16px;
-  flex-wrap: wrap;
-  margin-top: 18px;
-  border-bottom: 1px solid var(--admin-line);
-}
-.admin-order-toolbar .admin-category-tabs {
-  border-bottom: 0;
-}
-.admin-order-tools {
-  display: flex;
-  gap: 4px;
-}
-.admin-icon-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  color: var(--admin-ink);
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-}
-.admin-icon-text:hover {
-  background: var(--admin-active);
-}
-.admin-icon-text[aria-pressed="false"] {
-  color: var(--admin-muted);
-}
-.admin-order-checked {
-  margin: 8px 0 0;
-  font-size: 0.8125rem;
-  color: var(--admin-muted);
-}
-.admin-order-toast {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: var(--admin-ink);
-  color: var(--admin-on-ink);
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-.admin-order-fresh {
-  animation: admin-order-arrive 1.6s ease-out 2;
-  border-radius: 8px;
-}
-@keyframes admin-order-arrive {
-  0% {
-    background-color: var(--admin-attention-bg);
-  }
-  100% {
-    background-color: transparent;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .admin-order-fresh {
-    animation: none;
-    background-color: var(--admin-attention-bg);
-  }
-}
-.admin-order-help {
-  margin-top: 24px;
-  font-size: 0.8125rem;
-  color: var(--admin-muted);
-}
-.admin-order-help summary {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.admin-order-help p {
-  margin: 0;
-  line-height: 1.6;
-  max-width: 560px;
-}
 /* The language switch sits next to "Back to café" at the end of the top bar. */
 .admin-ui-language {
   margin-inline-start: auto;
@@ -1661,21 +1909,6 @@
   }
   .admin-category-fields {
     grid-template-columns: 1fr;
-  }
-  /* Phones: one compact row of numbers, so orders start near the top. */
-  .admin-order-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
-  }
-  .admin-order-summary > div {
-    min-width: 0;
-    padding: 8px 10px;
-  }
-  .admin-order-summary dd {
-    font-size: 0.9375rem;
-  }
-  .admin-order-tools span {
-    display: none;
   }
   .admin-title-row p {
     display: none;
@@ -1919,54 +2152,6 @@
   margin: 15px 0 0 42px;
   text-decoration: underline;
   text-underline-offset: 4px;
-}
-/* Order statuses */
-.admin-order-summary > .admin-order-attention {
-  background: var(--admin-attention-bg);
-}
-
-.admin-order-status {
-  display: inline-block;
-  margin-inline-start: 8px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  vertical-align: 2px;
-  background: var(--admin-active);
-  color: var(--admin-muted);
-}
-.admin-order-head .admin-order-status {
-  display: inline-block;
-  margin-top: 0;
-}
-.admin-order-status.new {
-  background: var(--admin-attention-bg);
-  color: var(--admin-attention-ink);
-}
-.admin-order-status.preparing {
-  background: var(--admin-preparing-bg);
-  color: var(--admin-accent);
-}
-.admin-order-status.cancelled {
-  text-decoration: line-through;
-}
-.admin-order-cancelled > :not(.admin-order-actions) {
-  opacity: 0.6;
-}
-.admin-order-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 18px;
-  margin-top: 14px;
-}
-.admin-order-actions .admin-primary,
-.admin-order-actions .admin-text-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 44px;
 }
 /* Email sign-in */
 .admin-signin {

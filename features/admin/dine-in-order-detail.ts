@@ -47,7 +47,8 @@ export type DineInOrderTargetStatus = Exclude<DineInOrderStatus, "pending">;
 const ALLOWED_STATUS_ACTIONS: Record<DineInOrderStatus, readonly DineInOrderTargetStatus[]> = {
   pending: ["confirmed", "rejected", "cancelled"],
   confirmed: ["preparing", "cancelled"],
-  preparing: ["completed", "cancelled"],
+  // Mirrors the server: an order already being prepared can only be completed.
+  preparing: ["completed"],
   completed: [],
   rejected: [],
   cancelled: [],

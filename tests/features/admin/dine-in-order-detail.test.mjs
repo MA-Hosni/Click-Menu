@@ -9,6 +9,7 @@ const {
   getDineInOrderStatusActions,
   parseDineInOrderDetail,
 } = requireTs("../../../features/admin/dine-in-order-detail.ts");
+const { formatDineInTableLabel } = requireTs("../../../features/admin/i18n/dine-in-table-label.ts");
 const {
   createDineInOrdersController,
   formatDineInTotal,
@@ -176,7 +177,7 @@ describe("normalized dine-in order detail", () => {
       pagination: { limit: 25, nextCursor: "next-page" },
     }));
     await list.start();
-    await list.setStatus("pending");
+    await list.setView("in_progress");
     const before = list.getSnapshot();
 
     const drawer = createDineInOrderDetailController(async () => response(detail()));
@@ -197,9 +198,21 @@ describe("normalized dine-in order detail", () => {
   it("shows only the backend-approved actions and none for terminal statuses", () => {
     assert.deepEqual(getDineInOrderStatusActions("pending"), ["confirmed", "rejected", "cancelled"]);
     assert.deepEqual(getDineInOrderStatusActions("confirmed"), ["preparing", "cancelled"]);
-    assert.deepEqual(getDineInOrderStatusActions("preparing"), ["completed", "cancelled"]);
+    // An order already being prepared cannot be cancelled: the kitchen started it.
+    assert.deepEqual(getDineInOrderStatusActions("preparing"), ["completed"]);
     for (const status of ["completed", "rejected", "cancelled"])
       assert.deepEqual(getDineInOrderStatusActions(status), []);
+  });
+
+  it("keeps pending transitions directed and formats table labels without duplicating prefixes", () => {
+    assert.deepEqual(getDineInOrderStatusActions("pending"), ["confirmed", "rejected", "cancelled"]);
+    assert.ok(!getDineInOrderStatusActions("pending").includes("preparing"));
+    assert.equal(formatDineInTableLabel("Table 1", "en"), "Table 1");
+    assert.equal(formatDineInTableLabel(" 5 ", "en"), "Table 5");
+    assert.equal(formatDineInTableLabel("Patio 1", "fr"), "Patio 1");
+    assert.equal(formatDineInTableLabel(" 5 ", "ar"), "طاولة 5");
+    assert.equal(formatDineInTableLabel("٥", "ar"), "طاولة ٥");
+    assert.equal(formatDineInTableLabel("table 1", "en"), "table 1");
   });
 
   it("PATCHes only the target status and updates displayed detail after a validated response", async () => {
@@ -339,12 +352,27 @@ describe("normalized dine-in order detail", () => {
 
   it("updates only the matching normalized list summary while preserving pagination", async () => {
     const list = createDineInOrdersController(async () => response({
-      orders: [{ orderId, createdAt: "1790000000000", status: "pending", customerName: null, tableLabel: "Patio 1", totalMillimes: 2700 }],
+      orders: [{ orderId, createdAt: "1790000000000", status: "pending", customerName: null, tableLabel: "Patio 1", totalMillimes: 2700, revision: 1790000000000, customerNotes: null, items: [] }],
       pagination: { limit: 25, nextCursor: "next-page" },
     }));
     await list.start();
     list.updateOrderStatus(orderId, "confirmed");
     assert.equal(list.getSnapshot().orders[0].status, "confirmed");
     assert.equal(list.getSnapshot().nextCursor, "next-page");
+  });
+});
+
+describe("millime formatting", () => {
+  it("formats integer millimes correctly as TND with decimal point", () => {
+    assert.equal(formatDineInTotal(47498, "en"), "47.498 TND");
+    assert.equal(formatDineInTotal(500, "en"), "0.500 TND");
+    assert.equal(formatDineInTotal(7000, "en"), "7.000 TND");
+    assert.equal(formatDineInTotal(0, "en"), "0.000 TND");
+    assert.equal(formatDineInTotal(999999, "en"), "999.999 TND");
+
+    assert.equal(formatDineInTotal(47498, "fr"), "47,498 TND");
+    assert.equal(formatDineInTotal(500, "fr"), "0,500 TND");
+
+    assert.equal(formatDineInTotal(47498, "ar"), "47,498 TND");
   });
 });

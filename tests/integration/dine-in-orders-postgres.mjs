@@ -20,9 +20,10 @@ const { createTransactionRunner } = requireTs("../../db/transaction.ts");
 const { createPostgresDineInOrderPersistence } = requireTs("../../features/orders/order-persistence.ts");
 const { createDineInOrderService } = requireTs("../../features/orders/order-service.ts");
 const { createDineInOrderPostHandler } = requireTs("../../features/orders/order-api.ts");
-const { createPostgresDineInOrderStatusUpdater } = requireTs("../../features/orders/order-status-store.ts");
+const { createPostgresConfirmAndPrepareUpdater, createPostgresDineInOrderStatusUpdater } = requireTs("../../features/orders/order-status-store.ts");
 const { DineInOrderTransitionConflict } = requireTs("../../features/orders/order-status.ts");
 const { queryDineInOrderSummaries } = requireTs("../../features/orders/order-list.ts");
+const { queryDineInOrderDashboardSummary } = requireTs("../../features/orders/order-dashboard-summary.ts");
 const { queryDineInOrderDetail } = requireTs("../../features/orders/order-detail.ts");
 const { queryCustomerDineInTrackingStatus } = requireTs("../../features/orders/order-tracking.ts");
 const { createCustomerDineInTrackingGetHandler } = requireTs("../../features/orders/order-tracking-api.ts");
@@ -238,7 +239,9 @@ try {
   const distinct = await Promise.all(identicalRequestKeys.map((key) => service.submit(request, key)));
   assert.notEqual(distinct[0].trackingToken, distinct[1].trackingToken);
   assert.equal(await countOrders(), 4);
-  pass("different keys with identical business content create separate orders");
+  const visibleOrders = await queryDineInOrderSummaries(listingDb, { limit: 100, status: null, cursor: null });
+  assert.ok(distinct.every((order) => visibleOrders.orders.some((listed) => listed.orderId === order.orderId)));
+  pass("different keys with identical business content create separate orders, both visible in the admin list");
 
   const replayKey = randomBytes(32).toString("base64url");
   const initial = await service.submit(request, replayKey);
@@ -354,7 +357,7 @@ try {
   const tracked = await queryCustomerDineInTrackingStatus(listingDb, persistedReceipt.orderId, persistedReceipt.trackingToken);
   assert.deepEqual(Object.keys(tracked).sort(), ["orderReference", "status", "updatedAt"]);
   assert.equal(tracked.status, "pending");
-  assert.equal(tracked.orderReference, persistedReceipt.orderId.slice(-8).toUpperCase());
+  assert.equal(tracked.orderReference, persistedReceipt.orderId.slice(0, 8).toUpperCase());
   assert.equal(await queryCustomerDineInTrackingStatus(listingDb, persistedReceipt.orderId, randomBytes(32).toString("base64url")), null);
   assert.equal(await queryCustomerDineInTrackingStatus(listingDb, "00000000-0000-4000-8000-000000000001", persistedReceipt.trackingToken), null);
   const trackingHandler = createCustomerDineInTrackingGetHandler({
@@ -652,8 +655,99 @@ try {
   pass("concurrent conflicting status updates serialize on the production FOR UPDATE query and only one commits");
   pass("customer tracking lookup reflects the persisted admin status change");
 
+  for (const status of ["pending", "confirmed", "preparing", "completed", "rejected", "cancelled"]) {
+    const first = await service.submit(request, randomBytes(32).toString("base64url"));
+    await pool.query("UPDATE dine_in_orders SET status=$1 WHERE id=$2", [status, first.orderId]);
+    const nextKey = randomBytes(32).toString("base64url");
+    const second = await service.submit(request, nextKey);
+    const retry = await service.submit(request, nextKey);
+    assert.notEqual(second.orderId, first.orderId);
+    assert.equal(retry.orderId, second.orderId);
+    assert.equal(retry.replayed, true);
+    const tableOrders = await queryDineInOrderSummaries(listingDb, { limit: 100, status: null, cursor: null });
+    assert.ok(tableOrders.orders.some((order) => order.orderId === first.orderId));
+    assert.ok(tableOrders.orders.some((order) => order.orderId === second.orderId));
+  }
+  pass("PostgreSQL accepts a new same-table order after each status, preserves same-key retries, and lists both orders");
+
   // Keep orders created by earlier integration cases out of this isolated
   // pagination fixture so the final page assertion covers exactly four rows.
+  await pool.query("TRUNCATE TABLE dine_in_order_items, dine_in_orders");
+
+  const combinedOrderId = randomUUID();
+  const combinedTrackingToken = randomBytes(32).toString("base64url");
+  const combinedRevision = Date.now();
+  const combinedDigests = [randomBytes(32).toString("hex"), randomBytes(32).toString("hex"), randomBytes(32).toString("hex")];
+  await pool.query(`
+    INSERT INTO dine_in_orders (
+      id, tracking_token_hash, request_hash, idempotency_key_hash, table_id,
+      table_label_snapshot, status, subtotal_millimes, total_millimes,
+      created_at, updated_at
+    ) VALUES ($1,$2,$3,$4,'table-1','Combined action table','pending',1000,1000,$5,$5)
+  `, [combinedOrderId, hashTrackingToken(combinedTrackingToken), combinedDigests[1], combinedDigests[2], combinedRevision]);
+  const confirmAndPrepare = createPostgresConfirmAndPrepareUpdater(transactionRunner);
+  const combinedResult = await confirmAndPrepare(combinedOrderId, combinedRevision);
+  assert.equal(combinedResult.orderId, combinedOrderId);
+  assert.equal(combinedResult.status, "preparing");
+  assert.ok(Number.isSafeInteger(combinedResult.revision));
+  assert.ok(combinedResult.revision > combinedRevision);
+  await assert.rejects(confirmAndPrepare(combinedOrderId, combinedRevision), DineInOrderTransitionConflict);
+  const combinedTracking = await queryCustomerDineInTrackingStatus(listingDb, combinedOrderId, combinedTrackingToken);
+  assert.equal(combinedTracking.status, "preparing");
+  pass("confirm-and-prepare applies both legal steps in one locked write, rejects a stale retry, and updates customer tracking");
+  await pool.query("TRUNCATE TABLE dine_in_order_items, dine_in_orders");
+
+  const dashboardTime = Date.now();
+  const dashboardOrders = [
+    ["20000000-0000-4000-8000-000000000001", "pending", 1000],
+    ["20000000-0000-4000-8000-000000000002", "pending", 1500],
+    ["20000000-0000-4000-8000-000000000003", "confirmed", 2000],
+    ["20000000-0000-4000-8000-000000000004", "preparing", 3000],
+    ["20000000-0000-4000-8000-000000000005", "completed", 4000],
+    ["20000000-0000-4000-8000-000000000006", "cancelled", 5000],
+    ["20000000-0000-4000-8000-000000000007", "rejected", 6000],
+  ];
+  for (const [index, [id, status, amount]] of dashboardOrders.entries()) {
+    const digest = String(index + 1).repeat(64);
+    await pool.query(`
+      INSERT INTO dine_in_orders (
+        id, tracking_token_hash, request_hash, idempotency_key_hash, table_id,
+        table_label_snapshot, status, subtotal_millimes, total_millimes,
+        created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,'table-1','Dashboard fixture',$5,$6,$6,$7,$7)
+    `, [id, digest, String(9 - index).repeat(64), String(2 + index).repeat(64), status, amount, dashboardTime]);
+  }
+  const dashboardSummary = await queryDineInOrderDashboardSummary(listingDb);
+  assert.deepEqual(dashboardSummary, {
+    pendingCount: 2,
+    preparingCount: 2,
+    todayDoneOrderCount: 1,
+    todayInKitchenTotalMillimes: 5000,
+    todayTotalMillimes: 4000,
+    latestPendingOrder: { orderId: dashboardOrders[1][0], createdAt: String(dashboardTime) },
+  });
+  pass("dashboard summary counts only completed revenue and sums confirmed/preparing kitchen amounts for today");
+  await queryDineInOrderSummaries(listingDb, { limit: 1, status: "in_progress", cursor: null });
+  assert.deepEqual(await queryDineInOrderDashboardSummary(listingDb), dashboardSummary);
+  pass("dashboard totals remain independent of the selected list status and page limit");
+
+  const tunisBoundary = await pool.query(`
+    SELECT
+      extract(epoch FROM ((timezone('Africa/Tunis', now())::date + time '23:10') AT TIME ZONE 'Africa/Tunis'))::bigint * 1000 AS today_late,
+      extract(epoch FROM (((timezone('Africa/Tunis', now())::date + interval '1 day')::date + time '00:01') AT TIME ZONE 'Africa/Tunis'))::bigint * 1000 AS tomorrow_early
+  `);
+  const boundaryDigest = (number) => (number + 20).toString(16).padStart(64, "0");
+  await pool.query(`
+    INSERT INTO dine_in_orders (id, tracking_token_hash, request_hash, idempotency_key_hash, table_id, table_label_snapshot, status, subtotal_millimes, total_millimes, created_at, updated_at)
+    VALUES
+      ('20000000-0000-4000-8000-000000000008', $1, $2, $3, 'table-1', 'Boundary', 'completed', 7100, 7100, $4, $4),
+      ('20000000-0000-4000-8000-000000000009', $5, $6, $7, 'table-1', 'Boundary', 'completed', 9100, 9100, $8, $8)
+  `, [boundaryDigest(1), boundaryDigest(2), boundaryDigest(3), tunisBoundary.rows[0].today_late,
+    boundaryDigest(4), boundaryDigest(5), boundaryDigest(6), tunisBoundary.rows[0].tomorrow_early]);
+  const boundarySummary = await queryDineInOrderDashboardSummary(listingDb);
+  assert.equal(boundarySummary.todayTotalMillimes, 11100);
+  assert.equal(boundarySummary.todayDoneOrderCount, 2);
+  pass("Tunisian 23:10 remains in today’s total while 00:01 after local midnight moves to the next day");
   await pool.query("TRUNCATE TABLE dine_in_order_items, dine_in_orders");
 
   const listingTime = "8000000000000000";
@@ -668,7 +762,7 @@ try {
         table_label_snapshot, status, subtotal_millimes, total_millimes,
         customer_name, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,'table-1','History fixture',$5,1234,1234,'Fixture guest',$6::bigint,$6::bigint)
-    `, [id, digest, String(9 - index).repeat(64), String(5 + index).repeat(64), index === 2 ? "preparing" : "pending", listingTime]);
+    `, [id, digest, String(9 - index).repeat(64), String(5 + index).repeat(64), ["completed", "pending", "preparing", "cancelled"][index], listingTime]);
   }
 
   const firstPage = await queryDineInOrderSummaries(listingDb, { limit: 2, status: null, cursor: null });
@@ -676,7 +770,7 @@ try {
   assert.ok(firstPage.nextCursor);
   assert.equal(firstPage.orders[0].createdAt, listingTime);
   assert.equal(firstPage.orders[0].totalMillimes, 1234);
-  assert.deepEqual(Object.keys(firstPage.orders[0]).sort(), ["createdAt", "customerName", "orderId", "status", "tableLabel", "totalMillimes"].sort());
+  assert.deepEqual(Object.keys(firstPage.orders[0]).sort(), ["createdAt", "customerName", "customerNotes", "items", "orderId", "revision", "status", "tableLabel", "totalMillimes"].sort());
 
   const secondPage = await queryDineInOrderSummaries(listingDb, { limit: 2, status: null, cursor: firstPage.nextCursor });
   assert.deepEqual(secondPage.orders.map((order) => order.orderId), listingIds.slice().reverse().slice(2));
@@ -688,7 +782,11 @@ try {
   assert.deepEqual(filtered.orders.map((order) => order.orderId), [listingIds[2]]);
   const empty = await queryDineInOrderSummaries(listingDb, { limit: 10, status: "rejected", cursor: null });
   assert.deepEqual(empty, { orders: [], nextCursor: null });
-  pass("production listing query filters status in PostgreSQL and returns empty history without a cursor");
+  const inProgress = await queryDineInOrderSummaries(listingDb, { limit: 10, status: "in_progress", cursor: null });
+  assert.deepEqual(inProgress.orders.map((order) => order.status).sort(), ["pending", "preparing"]);
+  const finished = await queryDineInOrderSummaries(listingDb, { limit: 10, status: "finished", cursor: null });
+  assert.deepEqual(finished.orders.map((order) => order.status).sort(), ["cancelled", "completed"]);
+  pass("production listing query preserves exact filters and pages the grouped in-progress and finished views");
 
   const detailOrderId = randomUUID();
   const detailDigests = [randomBytes(32).toString("hex"), randomBytes(32).toString("hex"), randomBytes(32).toString("hex")];

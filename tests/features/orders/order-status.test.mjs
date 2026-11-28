@@ -24,10 +24,15 @@ function request(body, options = {}) {
   });
 }
 
-function patchHandler({ user = { name: "The Hood" }, updateStatus = async (orderId, status) => ({ orderId, status }) } = {}) {
+function patchHandler({
+  user = { name: "The Hood" },
+  updateStatus = async (orderId, status) => ({ orderId, status }),
+  confirmAndPrepare = async (orderId, revision) => ({ orderId, status: "preparing", revision: revision + 1 }),
+} = {}) {
   return createDineInOrderStatusPatchHandler({
     getCurrentUser: async () => user,
     updateStatus,
+    confirmAndPrepare,
   });
 }
 
@@ -40,7 +45,7 @@ describe("normalized dine-in order status updates", () => {
     const allowed = [
       ["pending", "confirmed"], ["pending", "rejected"], ["pending", "cancelled"],
       ["confirmed", "preparing"], ["confirmed", "cancelled"],
-      ["preparing", "completed"], ["preparing", "cancelled"],
+      ["preparing", "completed"],
     ];
     const statuses = ["pending", "confirmed", "rejected", "preparing", "completed", "cancelled"];
     for (const current of statuses) {
@@ -58,6 +63,9 @@ describe("normalized dine-in order status updates", () => {
     });
     const response = await patch(request({ status: "confirmed" }), context("bad-id"));
     assert.equal(response.status, 401);
+    assert.equal(updateCalls, 0);
+    const actionResponse = await patch(request({ action: "confirm_and_prepare", revision: 123 }), context("bad-id"));
+    assert.equal(actionResponse.status, 401);
     assert.equal(updateCalls, 0);
   });
 
@@ -107,6 +115,35 @@ describe("normalized dine-in order status updates", () => {
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.deepEqual(received, { orderId: id, status: "confirmed" });
     assert.deepEqual(await response.json(), { orderId: id, status: "confirmed" });
+  });
+
+  it("accepts the dedicated confirm-and-prepare action with a safe revision", async () => {
+    let received;
+    const patch = patchHandler({
+      confirmAndPrepare: async (orderId, revision) => {
+        received = { orderId, revision };
+        return { orderId, status: "preparing", revision: revision + 1 };
+      },
+    });
+    const response = await patch(request({ action: "confirm_and_prepare", revision: 123 }), context());
+    assert.equal(response.status, 200);
+    assert.deepEqual(received, { orderId: id, revision: 123 });
+    assert.deepEqual(await response.json(), { orderId: id, status: "preparing", revision: 124 });
+  });
+
+  it("rejects unsafe confirm-and-prepare revisions and preserves conflict responses", async () => {
+    let updateCalls = 0;
+    const patch = patchHandler({ confirmAndPrepare: async () => {
+      updateCalls += 1;
+      throw new DineInOrderTransitionConflict();
+    } });
+    for (const revision of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, "123"]) {
+      const invalid = await patch(request({ action: "confirm_and_prepare", revision }), context());
+      assert.equal(invalid.status, 400);
+    }
+    const stale = await patch(request({ action: "confirm_and_prepare", revision: 123 }), context());
+    assert.equal(stale.status, 409);
+    assert.equal(updateCalls, 1);
   });
 
   it("returns 404 for a valid missing ID and 409 for a disallowed persisted transition", async () => {

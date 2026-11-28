@@ -29,6 +29,10 @@ This guide describes the current application requirements without assuming a hos
 
 The application uses the private bucket `uploads`. Keep it private; the app serves images through `/api/images/[id]` and never returns storage credentials. Do not configure bucket public access. Only server-side runtime environments need S3 credentials.
 
+### Development-only browser harness variables
+
+The checkout harness under `app/browser-test/` and the Playwright runner read four variables that are never used in production and are not part of `.env.example`: `CLICKMENU_CHECKOUT_BROWSER_TEST` enables the harness route, `CLICKMENU_CHECKOUT_BROWSER_HEALTH_TOKEN` is the token the harness health route requires, `CLICKMENU_CHECKOUT_BROWSER_BASE_URL` points the runner at the running dev server, and `CLICKMENU_CHECKOUT_BROWSER_RESULTS_DIR` chooses where the runner writes its artifacts. `npm run test:browser:checkout` sets the first two itself.
+
 ### Local PostgreSQL development
 
 For an isolated local PostgreSQL database, set `DATABASE_DRIVER=postgres` and point `DATABASE_URL` to that database. Remove `DATABASE_URL_POOLED` in this mode so the target is unambiguous. The app uses process-scoped `pg.Pool` instances for ordinary queries and transactions; `npm run db:migrate` also uses `DATABASE_URL`. Unset `DATABASE_DRIVER` continues to select Neon, and `DATABASE_DRIVER=neon` preserves the existing Neon HTTP and WebSocket paths. The adapters do not fall back to one another after an error. The `admin:password` command uses the selected driver and URL; the legacy image transfer utility remains Neon-specific.
@@ -89,7 +93,7 @@ Do not enable order intake as part of initial setup. The feature flag remains ab
 - GET /api/health/db performs a read-only SELECT 1. Success returns success=true; failure returns HTTP 500 and logs details server-side.
 - GET /api/catalog reads The Hood's singleton catalog; `shop` query parameters are ignored. Before initial setup it returns a blank catalog with no categories or dishes.
 - /menu loads the singleton catalog after hydration; metadata lookup failure falls back to base metadata.
-- /api/admin/catalog, /api/admin/orders, and /api/admin/images require a valid singleton administrator session.
+- /api/admin/catalog, /api/admin/catalog/review, /api/admin/orders, /api/admin/dine-in/orders (including /summary and /[id]), /api/admin/images, and /api/admin/tables (including /[id], /[id]/rotate, and /[id]/recover) require a valid singleton administrator session.
 - Production order submission and administrator sign-in depend on database connectivity and PostgreSQL-backed rate limits.
 - Forwarded headers are trusted only when requests reach the app through a controlled reverse proxy. Configure the proxy to **overwrite**, not append or pass through client-supplied, `X-Real-IP`, `X-Forwarded-For`, and `X-Forwarded-Proto` values. The app uses `X-Real-IP` or the first `X-Forwarded-For` value for rate-limit identity and the first `X-Forwarded-Proto` value to recognize HTTPS and set Secure cookies. Block public access to the application origin so clients cannot bypass the trusted proxy or spoof these headers.
 - Administrator login requires HTTPS in production. The app recognizes the request URL protocol or the first `X-Forwarded-Proto` value, so TLS must terminate at the trusted proxy and the proxy must set the header from the actual client connection. Never trust this header when the application is directly internet-accessible. HTTPS requests receive Secure session cookies.

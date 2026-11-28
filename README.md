@@ -8,6 +8,8 @@ ClickMenu is the digital menu and QR-only dine-in ordering application for The H
 - Category navigation, search, and TND prices on the public menu; ordering controls are available only in validated table QR context.
 - Server-authoritative integer-millime pricing, idempotent order persistence, and customer status tracking/recovery.
 - Password-only administrator sign-in, with password setup and reset through an interactive server-side CLI.
+- An admin orders board: live registered-table orders with a summary strip, per-order status actions, and an order detail drawer.
+- Preserved records from the previous ordering system, readable read-only from a separate admin tab.
 - Admin catalog editing, restaurant settings, QR generation, and order status management.
 - Revision checks that reject conflicting catalog saves.
 
@@ -46,6 +48,11 @@ Run the development server:
     npm run db:migrate
     npm run db:studio
     npm run admin:password
+    npm run test:browser:checkout
+    npm run test:integration:tracking-recovery
+    npm run test:integration:catalog-review
+    npm run test:integration:transactions
+    npm run test:integration:dine-in-orders
 
 ## Routes
 
@@ -54,16 +61,19 @@ Run the development server:
 | / | Customer landing page and menu |
 | /menu | The Hood menu; query parameters do not establish registered table identity |
 | /t/[token] | Registered-table QR route; resolves an active table before showing its menu |
+| /track/[orderId] | Customer order status tracking; the tracking token is supplied in the URL fragment |
 | /admin | Redirects to /admin/menu |
 | /admin/login | Administrator password sign-in |
 | /admin/menu | Menu editor |
 | /admin/categories | Category editor |
-| /admin/orders | Order management |
+| /admin/orders | Order board for registered-table orders and preserved history |
 | /admin/restaurant | Restaurant settings |
 | /admin/tables | Manage restaurant tables and their QR codes |
 | /admin/qr | Redirects to /admin/tables |
 | /api/catalog | The Hood's public catalog; returns an empty TND catalog before initial setup |
-| /api/orders | Retired legacy endpoint (410); new ordering is QR dine-in only |
+| /api/orders | Retired legacy endpoint; `POST` always returns 410 and new ordering is QR dine-in only |
+| /api/dine-in/orders | Customer dine-in order submission; disabled unless `DINE_IN_ORDER_INTAKE_ENABLED` is exactly `true` |
+| /api/dine-in/orders/[id]/tracking | Customer order status for a holder of the tracking token |
 | /api/auth/login | Administrator password sign-in |
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local development and pull request guidance. See [docs/README.md](docs/README.md) for technical documentation and [AGENTS.md](AGENTS.md) and [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for architecture guidance.

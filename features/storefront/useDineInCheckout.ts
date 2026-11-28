@@ -13,15 +13,20 @@ import {
   createPendingDineInSubmission,
   getDineInStorage,
   isRegisteredTableToken,
+  dineInOrderSessionHistoryKey,
+  loadDineInOrderSessionHistory,
+  rememberDineInOrderInSession,
   markPendingDineInTerminal,
   postDineInSubmission,
   pendingDineInStorageKey,
   reconcilePendingDineInSubmission,
   removePendingDineInSubmission,
+  releaseAcknowledgedDineInOrder,
   savePendingDineInSubmission,
   withDineInTableLock,
   type PendingDineInStorageState,
   type PendingDineInSubmission,
+  type DineInOrderSessionReference,
 } from "./dine-in-order";
 
 export interface DineInReceipt {
@@ -50,6 +55,7 @@ interface CheckoutState {
   receiptOperation: PendingDineInSubmission | null;
   receiptAcknowledged: boolean;
   receiptAckError: boolean;
+  orderHistory: DineInOrderSessionReference[];
   submitState: DineInSubmitState;
 }
 
@@ -66,6 +72,7 @@ function emptyState(ownerToken: string): CheckoutState {
     receiptOperation: null,
     receiptAcknowledged: false,
     receiptAckError: false,
+    orderHistory: [],
     submitState: { kind: "idle" },
   };
 }
@@ -149,7 +156,7 @@ export function useDineInCheckout({
         };
       if (stored.kind === "none" && preserveUnknownEmpty && current.pendingStatus !== "none")
         return { ...current, pendingStatus: "unknown", submitState: { kind: "error", reason: "server" } };
-      return stateForStorage(ownerToken, stored);
+      return { ...stateForStorage(ownerToken, stored), orderHistory: current.orderHistory };
     });
     if (stored.kind === "retryable" || stored.kind === "terminal-conflict")
       setCart(cartFromDineInPayload(stored.operation.payload));
@@ -163,7 +170,11 @@ export function useDineInCheckout({
     const storage = getDineInStorage();
     void withDineInTableLock(tableToken, async () => {
       const stored = await reconcilePendingDineInSubmission(storage, tableToken);
-      if (live && generation === storageReadGeneration.current) applyStorageState(tableToken, stored, false);
+      const orderHistory = await loadDineInOrderSessionHistory(storage, tableToken);
+      if (live && generation === storageReadGeneration.current) {
+        applyStorageState(tableToken, stored, false);
+        updateOwnedState(tableToken, (current) => ({ ...current, orderHistory }));
+      }
     }).catch(() => {
       if (live && generation === storageReadGeneration.current)
         updateOwnedState(tableToken, (current) => ({ ...current, pendingStatus: "unknown", submitState: { kind: "error", reason: "coordination" } }));
@@ -177,11 +188,22 @@ export function useDineInCheckout({
     if (!storefrontReady || !isRegisteredTableToken(tableToken)) return;
     let live = true;
     let expectedKey = "";
+    let expectedHistoryKey = "";
     void pendingDineInStorageKey(tableToken).then((key) => {
       if (!live) return;
       expectedKey = key;
     }).catch(() => {});
+    void dineInOrderSessionHistoryKey(tableToken).then((key) => {
+      if (!live) return;
+      expectedHistoryKey = key;
+    }).catch(() => {});
     const onStorage = (event: StorageEvent) => {
+      if (event.key === expectedHistoryKey && expectedHistoryKey) {
+        void loadDineInOrderSessionHistory(getDineInStorage(), tableToken).then((orderHistory) => {
+          if (live) updateOwnedState(tableToken, (current) => ({ ...current, orderHistory }));
+        });
+        return;
+      }
       if (!expectedKey || event.key !== expectedKey) return;
       const ownerToken = tableToken;
       const generation = ++storageReadGeneration.current;
@@ -222,6 +244,10 @@ export function useDineInCheckout({
     }
 
     persistTrackingCapability(result.receipt.orderId, result.receipt.trackingToken);
+    const orderHistory = await rememberDineInOrderInSession(getDineInStorage(), ownerToken, {
+      orderId: result.receipt.orderId,
+      createdAt: result.receipt.createdAt,
+    });
 
     updateOwnedState(ownerToken, (current) => ({
       ...current,
@@ -232,6 +258,7 @@ export function useDineInCheckout({
       receiptOperation: operation,
       receiptAcknowledged: false,
       receiptAckError: false,
+      orderHistory,
       submitState: { kind: "idle" },
     }));
   }, [submitOperation, updateOwnedState]);
@@ -372,16 +399,34 @@ export function useDineInCheckout({
       void abandonPending();
   }, [abandonPending, activeState.submitState]);
 
-  const startNewOrder = useCallback(async () => {
-    if (activeState.receipt && !activeState.receiptAcknowledged) return;
+  const startNewOrder = useCallback(async (): Promise<boolean> => {
     const expectedOrderId = activeState.completedOrderId ??
       (activeState.receiptAcknowledged ? activeState.receipt?.orderId : null);
-    if (!expectedOrderId) return;
+    const receipt = activeState.receipt;
+    const receiptOperation = activeState.receiptOperation;
+    const targetOrderId = expectedOrderId ?? receipt?.orderId ?? null;
+    if (!targetOrderId) return false;
+    let started = false;
     try {
       await withDineInTableLock(tableToken, async () => {
         const storage = getDineInStorage();
+        if (receipt && receiptOperation && !activeState.receiptAcknowledged) {
+          const released = await releaseAcknowledgedDineInOrder(
+            storage, tableToken, receiptOperation, receipt.orderId,
+          );
+          if (!released) {
+            updateOwnedState(tableToken, (current) => ({ ...current, receiptAckError: true }));
+            return;
+          }
+          setCart([]);
+          updateOwnedState(tableToken, (current) => ({
+            ...emptyState(tableToken), ready: true, pendingStatus: "none", orderHistory: current.orderHistory,
+          }));
+          started = true;
+          return;
+        }
         const result = await removePendingDineInSubmission(
-          storage, tableToken, { kind: "completed", orderId: expectedOrderId }, "new-order",
+          storage, tableToken, { kind: "completed", orderId: targetOrderId }, "new-order",
         );
         if (result === "changed") {
           const actual = await reconcilePendingDineInSubmission(storage, tableToken);
@@ -394,12 +439,17 @@ export function useDineInCheckout({
           return;
         }
         setCart([]);
-        updateOwnedState(tableToken, () => ({ ...emptyState(tableToken), ready: true, pendingStatus: "none" }));
+        updateOwnedState(tableToken, (current) => ({
+          ...emptyState(tableToken), ready: true, pendingStatus: "none", orderHistory: current.orderHistory,
+        }));
+        started = true;
       });
+      return started;
     } catch {
       updateOwnedState(tableToken, (current) => ({ ...current, submitState: { kind: "error", reason: "coordination" } }));
+      return false;
     }
-  }, [activeState.completedOrderId, activeState.receipt, activeState.receiptAcknowledged, applyStorageState, setCart, tableToken, updateOwnedState]);
+  }, [activeState.completedOrderId, activeState.receipt, activeState.receiptAcknowledged, activeState.receiptOperation, applyStorageState, setCart, tableToken, updateOwnedState]);
 
   const setCustomerName = useCallback((customerName: string) => updateOwnedState(tableToken, (current) => ({ ...current, customerName })), [tableToken, updateOwnedState]);
   const setNotes = useCallback((notes: string) => updateOwnedState(tableToken, (current) => ({ ...current, notes })), [tableToken, updateOwnedState]);
@@ -416,6 +466,7 @@ export function useDineInCheckout({
     receipt: activeState.receipt,
     receiptAcknowledged: activeState.receiptAcknowledged,
     receiptAckError: activeState.receiptAckError,
+    orderHistory: activeState.orderHistory,
     acknowledgeReceipt,
     submitState: activeState.submitState,
     submit,
